@@ -82,7 +82,7 @@ lispy_call = (fn, arg_values) ->
                 # record the scope for future introspection
                 cr.scope = callee_scope
 
-                lispy_eval(callee_scope, body)
+                lispy_eval_value(callee_scope, body)
 
             when 'nat'
                 [_nat_ty, native_impl] = fn
@@ -99,10 +99,11 @@ lispy_call = (fn, arg_values) ->
         arrays_equal = (a, b) -> a.length == b.length and _l.every [0...a.length], (i) -> a[i] == b[i]
         throw new Error("corrupted stack") unless arrays_equal(interpreter_stack, cr.stack)
 
-# eval :: Scope -> Expr -> Value
+# lispy_eval :: Scope -> Expr -> Record
 lispy_eval = (scope, expr) ->
     [expr_ty, params...] = expr
-    switch expr_ty
+    record = {scope, expr}
+    record.value = switch expr_ty
         when 'var'
             [varname] = params
             var_lookup(scope, varname)
@@ -115,21 +116,9 @@ lispy_eval = (scope, expr) ->
             [val] = params
             val
 
-        when 'call'
-            [subexprs] = params
-
-            # postorder on the args!
-            subexpr_vals = []
-            for subexpr in subexprs
-                val = lispy_eval(scope, subexpr)
-                subexpr_vals.push(val)
-
-            [fn, arg_vals...] = subexpr_vals
-            return lispy_call(subexpr_vals[0], subexpr_vals.slice(1))
-
         when 'set'
             [varname, new_val_expr] = params
-            new_value = lispy_eval(scope, new_val_expr)
+            new_value = lispy_eval_value(scope, new_val_expr)
             set_var(scope, varname, new_value)
 
             # track closures' names for debugging
@@ -138,9 +127,27 @@ lispy_eval = (scope, expr) ->
             if _l.isArray(new_value) and new_value[0] == 'cl'
                 (new_value.names ?= new Set()).add(varname)
 
-            return new_value
+            new_value
+
+        when 'call'
+            [subexprs] = params
+
+            # postorder on the args!
+            ordered_map = _l.map
+            record.args = ordered_map subexprs, (subexpr) -> lispy_eval(scope, subexpr)
+
+            [fn, arg_values...] = _l.map(record.args, 'value')
+            lispy_call(fn, arg_values)
+
 
         else throw new Error("tried to eval a non-expr")
+
+    return record
+
+
+# lispy_eval_value :: Scope -> Expr -> Value
+lispy_eval_value = (scope, expr) -> lispy_eval(scope, expr).value
+
 
 # builtin_native_fns :: {Var: (Value...) -> Value}
 builtin_native_fns = {
@@ -204,7 +211,7 @@ window.lispy_run = lispy_run = (exprs) ->
     try
         eval_scope = push_scope(lispy_common_root_scope, {})
         in_order_map = _l.map
-        retvals = in_order_map exprs, (e) -> lispy_eval(eval_scope, e)
+        retvals = in_order_map exprs, (e) -> lispy_eval_value(eval_scope, e)
 
         return {retvals, record: cr}
 
