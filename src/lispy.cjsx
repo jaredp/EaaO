@@ -67,10 +67,12 @@ interpreter_stack = []
 
 # lispy_call :: (Closure|Native) -> [Value] -> Value
 lispy_call = (fn, arg_values) ->
-    lispy_record_call(fn, arg_values)
+    # TODO record this call as coming from native, if that's what's happening
+    # TODO make sure inner calls don't mistakenly think they're being called by our caller
+    lispy_call_internal(fn, arg_values).value
 
-# lispy_call :: (Closure|Native) -> [Value] -> Value
-lispy_record_call = (fn, arg_values) ->
+# lispy_call :: (Closure|Native) -> [Value] -> {value: Value, body: Record?, callees: [Record]?}
+lispy_call_internal = (fn, arg_values) ->
     cr = {fn, args: arg_values, stack: interpreter_stack.slice(), callees: []}
     call_records.push(cr)
     _l.last(interpreter_stack).callees.push(cr)
@@ -87,11 +89,15 @@ lispy_record_call = (fn, arg_values) ->
                 # record the scope for future introspection
                 cr.scope = callee_scope
 
-                lispy_eval_value(callee_scope, body)
+                body_record = lispy_eval(callee_scope, body)
+                {value: body_record.value, body: body_record}
 
             when 'nat'
                 [_nat_ty, native_impl] = fn
-                native_impl(arg_values...)
+                value = native_impl(arg_values...)
+                # TODO collect callees
+                collected_callee_records = []
+                {value: value, callees: collected_callee_records}
 
             else
                 throw new Error("called an object neither a lambda nor a native")
