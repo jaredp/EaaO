@@ -243,7 +243,8 @@ window.jscall_lispy = jscall_lispy = (lispy_closure) -> (js_call_args...) ->
 callee_records = (record) ->
     _l.flatten _l.compact [
         _l.flatMap(record.args, callee_records) if record.args?
-        callee_records(record.body) if record.body?
+        callee_records(record.body) if expr[0] == 'set'
+        ([record.body]) if expr[0] == 'call'
         record.callees
     ]
 
