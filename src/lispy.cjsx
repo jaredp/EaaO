@@ -21,10 +21,11 @@ Value :: Number | String     # aka LitValue.
        | JSObject            # any valid Javascript object can be passed around as a black box
                              # Note these are not currently boxed.
 Record :: {
-    value: Value, expr: Expr, scope: Scope,
-    args: [Record]?      # when .expr[0] == 'call'
-    body: Record?        # when .expr[0] == 'call' and .args[0].value == 'cl'
-    callees: [Record]?   # when .expr[0] == 'call' and .args[0].value == 'nat'
+    value: Value
+    expr: Expr?, scope?: Scope      # unless an arg from a call into lispy from native
+    args: [Record]?                 # when .expr[0] == 'call'
+    body: Record?                   # when .expr[0] == 'call' and .args[0].value == 'cl'
+    callees: [Record]?              # when .expr[0] == 'call' and .args[0].value == 'nat'
 }
 ###
 
@@ -234,6 +235,10 @@ callee_records = (record) ->
         callee_records(record.body) if record.body?
         record.callees
     ]
+
+# all_call_records :: Record -> [Record]
+all_call_records = (record) ->
+    [record].concat _l.flatMap callee_records(record), all_call_records
 
 immediate_subexprs_for_expr = (expr) ->
     switch expr[0]
