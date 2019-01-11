@@ -20,6 +20,12 @@ Value :: Number | String     # aka LitValue.
        | Expr                # first class code rewriting.  think S-expr
        | JSObject            # any valid Javascript object can be passed around as a black box
                              # Note these are not currently boxed.
+Record :: {
+    value: Value, expr: Expr, scope: Scope,
+    args: [Record]?      # when .expr[0] == 'call'
+    body: Record?        # when .expr[0] == 'call' and .args[0].value == 'cl'
+    callees: [Record]?   # when .expr[0] == 'call' and .args[0].value == 'nat'
+}
 ###
 
 ## Scope
@@ -136,29 +142,6 @@ lispy_eval = (scope, expr) ->
 
         else throw new Error("tried to eval a non-expr")
 
-# Analysis
-
-
-immediate_subexprs_for_expr = (expr) ->
-    switch expr[0]
-        when 'var'    then []
-        when 'lambda' then [expr[2]]
-        when 'lit'    then []
-        when 'call'   then expr[1]
-        when 'set'    then [expr[2]]
-        else throw new Error("expected an expr")
-
-
-# all_exprs_in_source_order :: Expr -> [Expr]
-# returns subexprs + original expr in order of their start in the source
-window.all_exprs_in_source_order = all_exprs_in_source_order = (expr) ->
-    [expr].concat _l.flatMap(immediate_subexprs_for_expr(expr), all_exprs_in_source_order)
-
-window.all_exprs_in_eval_order = all_exprs_in_eval_order = (expr) ->
-    _l.flatMap(immediate_subexprs_for_expr(expr), all_exprs_in_eval_order).concat [expr]
-
-##
-
 # builtin_native_fns :: {Var: (Value...) -> Value}
 builtin_native_fns = {
     '+':  (a, b) -> a + b
@@ -233,6 +216,36 @@ window.lispy_run = lispy_run = (exprs) ->
 # where JSClosure = (Value...) -> Value
 window.jscall_lispy = jscall_lispy = (lispy_closure) -> (js_call_args...) ->
     lispy_call(lispy_closure, js_call_args)
+
+
+# Analysis
+
+# callee_records :: Record -> [Record]
+callee_records = (record) ->
+    _l.flatten _l.compact [
+        _l.flatMap(record.args, callee_records) if record.args?
+        callee_records(record.body) if record.body?
+        record.callees
+    ]
+
+immediate_subexprs_for_expr = (expr) ->
+    switch expr[0]
+        when 'var'    then []
+        when 'lambda' then [expr[2]]
+        when 'lit'    then []
+        when 'call'   then expr[1]
+        when 'set'    then [expr[2]]
+        else throw new Error("expected an expr")
+
+
+# all_exprs_in_source_order :: Expr -> [Expr]
+# returns subexprs + original expr in order of their start in the source
+window.all_exprs_in_source_order = all_exprs_in_source_order = (expr) ->
+    [expr].concat _l.flatMap(immediate_subexprs_for_expr(expr), all_exprs_in_source_order)
+
+window.all_exprs_in_eval_order = all_exprs_in_eval_order = (expr) ->
+    _l.flatMap(immediate_subexprs_for_expr(expr), all_exprs_in_eval_order).concat [expr]
+
 
 ## Syntax
 
@@ -595,12 +608,14 @@ exports.Lispy = class Lispy
                     }
                 />
 
-            if _l.isEmpty cr.callees
+            callees = cr.callees
+
+            if _l.isEmpty callees
                 {width: leaf_size.width, height: leaf_size.height, render: ({x, y}) ->
                     render_entry({x, y, width: leaf_size.width})
                 }
             else
-                children_layouts = cr.callees.map(layout_entry)
+                children_layouts = callees.map(layout_entry)
                 width =  _l.sum(_l.map(children_layouts, 'width'))  + (children_layouts.length - 1) * entry_spacing.x
                 height = _l.max(_l.map(children_layouts, 'height')) + leaf_size.height + entry_spacing.y
                 { width, height, render: ({x, y}) ->
