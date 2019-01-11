@@ -223,9 +223,9 @@ window.lispy_run = lispy_run = (exprs) ->
     try
         eval_scope = push_scope(lispy_common_root_scope, {})
         in_order_map = _l.map
-        retvals = in_order_map exprs, (e) -> lispy_eval(eval_scope, e).value
+        records = in_order_map exprs, (e) -> lispy_eval(eval_scope, e)
 
-        return {retvals, record: cr}
+        return {records, old_cr_format: cr}
 
     finally
         interpreter_stack.pop()
@@ -522,7 +522,7 @@ exports.Lispy = class Lispy
         chunk_ranges = _l.zip([0].concat(chunk_delimiters), chunk_delimiters.concat([lispy_code.length]))
         chunks = chunk_ranges.map ([start, end]) -> [start, end, lispy_code.slice(start, end)]
 
-        chunks_with_vals = _l.zip(chunks, eval_results.retvals)
+        chunks_with_vals = _l.zip(chunks, _l.map(eval_results.records, 'value'))
 
         panes = <div>
             { chunks_with_vals.map ([[chunk_start, chunk_end, chunk_source_code], eval_result], i) =>
@@ -653,7 +653,7 @@ exports.Lispy = class Lispy
                     </React.Fragment>
                 }
 
-        tree_layout = layout_entry(eval_results.record)
+        tree_layout = layout_entry(eval_results.old_cr_format)
         timeline =
             <div
                 style={
