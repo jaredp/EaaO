@@ -67,6 +67,10 @@ interpreter_stack = []
 
 # lispy_call :: (Closure|Native) -> [Value] -> Value
 lispy_call = (fn, arg_values) ->
+    lispy_record_call(fn, arg_values)
+
+# lispy_call :: (Closure|Native) -> [Value] -> Value
+lispy_record_call = (fn, arg_values) ->
     cr = {fn, args: arg_values, stack: interpreter_stack.slice(), callees: []}
     call_records.push(cr)
     _l.last(interpreter_stack).callees.push(cr)
@@ -149,58 +153,61 @@ lispy_eval = (scope, expr) ->
 # lispy_eval_value :: Scope -> Expr -> Value
 lispy_eval_value = (scope, expr) -> lispy_eval(scope, expr).value
 
+# fresh_root_scope :: -> Scope
+window.fresh_root_scope = fresh_root_scope = ->
+    # builtin_native_fns :: {Var: (Value...) -> Value}
+    builtin_native_fns = {
+        '+':  (a, b) -> a + b
+        '-':  (a, b) -> a - b
+        '*':  (a, b) -> a * b
+        '/':  (a, b) -> a / b
+        '<':  (a, b) -> a < b
+        '<=': (a, b) -> a <= b
+        '>':  (a, b) -> a > b
+        '>=': (a, b) -> a >= b
+        '==': (a, b) -> a == b
+        '++': (a, b) -> a.concat(b)
 
-# builtin_native_fns :: {Var: (Value...) -> Value}
-builtin_native_fns = {
-    '+':  (a, b) -> a + b
-    '-':  (a, b) -> a - b
-    '*':  (a, b) -> a * b
-    '/':  (a, b) -> a / b
-    '<':  (a, b) -> a < b
-    '<=': (a, b) -> a <= b
-    '>':  (a, b) -> a > b
-    '>=': (a, b) -> a >= b
-    '==': (a, b) -> a == b
-    '++': (a, b) -> a.concat(b)
+        'if': (pred, if_true, if_false) ->
+            winning_branch = if pred == true then if_true else if_false
+            lispy_call(winning_branch, [])
 
-    'if': (pred, if_true, if_false) ->
-        winning_branch = if pred == true then if_true else if_false
-        lispy_call(winning_branch, [])
+        '[]': (args...) -> args
+        call: (fn, args) -> lispy_call(fn, args)
 
-    '[]': (args...) -> args
-    call: (fn, args) -> lispy_call(fn, args)
+        # naturally goes with `set!`; relies on order of evaluation
+        ';': (stmts...) -> _l.last(stmts)
 
-    # naturally goes with `set!`; relies on order of evaluation
-    ';': (stmts...) -> _l.last(stmts)
+        str_to_int: (str) -> Number(str)
+        range: (n) -> [0...n]
+        map: (lst, fn) -> lst.map (e) -> lispy_call(fn, [e])
+        '.': (o, member) -> o[member]
+        '@': (o, method, args...) -> o[method](args...)
+        '{}': (kvpairs...) ->
+            if kvpairs.length % 2 != 0
+                throw new Error("mismatched key/value pairs; is a key missing its value?")
+            _l.fromPairs(_l.chunk(kvpairs, 2))
 
-    str_to_int: (str) -> Number(str)
-    range: (n) -> [0...n]
-    map: (lst, fn) -> lst.map (e) -> lispy_call(fn, [e])
-    '.': (o, member) -> o[member]
-    '@': (o, method, args...) -> o[method](args...)
-    '{}': (kvpairs...) ->
-        if kvpairs.length % 2 != 0
-            throw new Error("mismatched key/value pairs; is a key missing its value?")
-        _l.fromPairs(_l.chunk(kvpairs, 2))
+        record: (closure) ->
+            lispy_call(closure, [])
+            return _l.last(interpreter_stack).callees[0].callees
+    }
 
-    record: (closure) ->
-        lispy_call(closure, [])
-        return _l.last(interpreter_stack).callees[0].callees
-}
+    builtin_literal_values = {
+        null: null
+        console
+    }
 
-builtin_literal_values = {
-    null: null
-    console
-}
+    return {
+        vars: _l.extend({},
+            _l.mapValues(builtin_native_fns, (impl, name) -> ['nat', impl, name]),
+            builtin_literal_values
+        )
+        parent: null,
+    }
 
 # lispy_common_root_scope :: Scope
-window.lcrs = lispy_common_root_scope = {
-    parent: null,
-    vars: _l.extend({},
-        _l.mapValues(builtin_native_fns, (impl, name) -> ['nat', impl, name]),
-        builtin_literal_values
-    )
-}
+window.lcrs = lispy_common_root_scope = fresh_root_scope()
 
 # lispy_run :: [Expr] -> [Value]
 window.lispy_run = lispy_run = (exprs) ->
