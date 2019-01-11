@@ -148,8 +148,9 @@ lispy_eval = (scope, expr) ->
             record.args = ordered_map subexprs, (subexpr) -> lispy_eval(scope, subexpr)
 
             [fn, arg_values...] = _l.map(record.args, 'value')
-            lispy_call(fn, arg_values)
-
+            call_record = lispy_call_internal(fn, arg_values)
+            _l.extend record, call_record
+            call_record.value
 
         else throw new Error("tried to eval a non-expr")
 
