@@ -24,7 +24,7 @@ Record :: {
     value: Value
     expr: Expr?, scope?: Scope      # unless an arg from a call into lispy from native
     args: [Record]?                 # when .expr[0] == 'call'
-    body: Record?                   # when .expr[0] == 'call' and .args[0].value == 'cl'
+    body: Record?                   # when .expr[0] == 'call' and .args[0].value == 'cl' or .expr[0] == 'set'
     callees: [Record]?              # when .expr[0] == 'call' and .args[0].value == 'nat'
 }
 ###
@@ -129,16 +129,16 @@ lispy_eval = (scope, expr) ->
 
         when 'set'
             [varname, new_val_expr] = params
-            new_value = lispy_eval_value(scope, new_val_expr)
-            set_var(scope, varname, new_value)
+            record.body = lispy_eval(scope, new_val_expr)
+            set_var(scope, varname, record.body.value)
 
             # track closures' names for debugging
             # approach: sketchily guess if it looks like a closure
             # Debugging tool idea: find all the names any object's been given, ever
-            if _l.isArray(new_value) and new_value[0] == 'cl'
-                (new_value.names ?= new Set()).add(varname)
+            if _l.isArray(record.body.value) and record.body.value[0] == 'cl'
+                (record.body.value.names ?= new Set()).add(varname)
 
-            new_value
+            record.body.value
 
         when 'call'
             [subexprs] = params
