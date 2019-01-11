@@ -156,9 +156,6 @@ lispy_eval = (scope, expr) ->
     return record
 
 
-# lispy_eval_value :: Scope -> Expr -> Value
-lispy_eval_value = (scope, expr) -> lispy_eval(scope, expr).value
-
 # fresh_root_scope :: -> Scope
 window.fresh_root_scope = fresh_root_scope = ->
     # builtin_native_fns :: {Var: (Value...) -> Value}
@@ -225,7 +222,7 @@ window.lispy_run = lispy_run = (exprs) ->
     try
         eval_scope = push_scope(lispy_common_root_scope, {})
         in_order_map = _l.map
-        retvals = in_order_map exprs, (e) -> lispy_eval_value(eval_scope, e)
+        retvals = in_order_map exprs, (e) -> lispy_eval(eval_scope, e).value
 
         return {retvals, record: cr}
 
