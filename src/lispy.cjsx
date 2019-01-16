@@ -605,6 +605,14 @@ exports.Lispy = class Lispy
 
         rk = (key) => (children) => <React.Fragment key={key} children={children} />
 
+        handle_click_on_record = (record) =>
+            window.r = record
+            if record.expr?
+                @hl(record.expr)
+
+            else if record.args?[0].value[0] == 'cl'
+                @hl(record.args[0].value[2])
+
         layout_entry = (call_record) =>
             fn = call_record.args[0].value
             callees = callee_records(call_record)
@@ -631,10 +639,7 @@ exports.Lispy = class Lispy
                         fontFamily: 'monospace'
                         fontSize: 14
                     }}
-                    onClick={=>
-                        if fn[0] == 'cl'
-                            @hl(fn[2])
-                    }
+                    onClick={-> handle_click_on_record(call_record)}
                 />
 
             if _l.isEmpty callees
