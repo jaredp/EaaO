@@ -188,8 +188,7 @@ window.fresh_root_scope = fresh_root_scope = ->
             _l.fromPairs(_l.chunk(kvpairs, 2))
 
         record: (closure) ->
-            lispy_call(closure, [])
-            return _l.last(interpreter_stack).callees[0].callees
+            lispy_call_internal(closure, []).body
     }
 
     builtin_literal_values = {
