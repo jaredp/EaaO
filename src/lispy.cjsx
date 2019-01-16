@@ -270,6 +270,14 @@ window.all_exprs_in_source_order = all_exprs_in_source_order = (expr) ->
 window.all_exprs_in_eval_order = all_exprs_in_eval_order = (expr) ->
     _l.flatMap(immediate_subexprs_for_expr(expr), all_exprs_in_eval_order).concat [expr]
 
+window.recursive_records_in_eval_order = recursive_records_in_eval_order = (record) ->
+    _l.flatten _l.compact [
+        _l.flatMap(record.args, recursive_records_in_eval_order) if record.args?
+        recursive_records_in_eval_order(record.body) if record.body?
+        _l.flatMap(record.callees, recursive_records_in_eval_order) if record.callees?
+        [record]
+    ]
+
 
 ## Syntax
 
@@ -473,14 +481,16 @@ exports.Lispy = class Lispy
         @timelineDidMount()
 
     cycle_highlight_through_exprs: ->
-        exprs = call_records.filter ({fn: [ty]}) -> ty == 'cl'
         tick_forever = (cycle_time_ms, fn) ->
             ticks = 0
             ((o) -> window.setInterval(o, cycle_time_ms)) () =>
                 fn(ticks)
                 ticks += 1
-        index_in_inf_cycle = (lst, idx) -> lst[idx % lst.length]
-        tick_forever 500, (tick) => @hl index_in_inf_cycle(exprs, tick).fn[2]
+        cycle_through_elems_forever = (delay, lst, fn) ->
+            tick_forever delay, (tick) => fn lst[tick % lst.length]
+
+        records = recursive_records_in_eval_order(root_record)
+        cycle_through_elems_forever 500, records, (record) => @hl record.expr
 
 
     # parsed_object is something that has a source_range, typically a token or expr
