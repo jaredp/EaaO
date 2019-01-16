@@ -2,6 +2,7 @@ React = require 'react'
 createReactClass = require 'create-react-class'
 _l = require 'lodash'
 { inspect } = require 'util'
+ordered_map = _l.map
 
 ###
 Var :: String
@@ -24,8 +25,8 @@ Record :: {
     value: Value
     expr: Expr?, scope?: Scope      # unless an arg from a call into lispy from native
     args: [Record]?                 # when .expr[0] == 'call'
-    body: Record?                   # when .expr[0] == 'call' and .args[0].value == 'cl' or .expr[0] == 'set'
-    callees: [Record]?              # when .expr[0] == 'call' and .args[0].value == 'nat'
+    body: Record?                   # when .expr[0] == 'call' and .args[0].value[0] == 'cl' or .expr[0] == 'set'
+    callees: [Record]?              # when .expr[0] == 'call' and .args[0].value[0] == 'nat'
 }
 ###
 
@@ -144,7 +145,6 @@ lispy_eval = (scope, expr) ->
             [subexprs] = params
 
             # postorder on the args!
-            ordered_map = _l.map
             record.args = ordered_map subexprs, (subexpr) -> lispy_eval(scope, subexpr)
 
             [fn, arg_values...] = _l.map(record.args, 'value')
@@ -210,22 +210,18 @@ window.fresh_root_scope = fresh_root_scope = ->
         parent: null,
     }
 
-# lispy_common_root_scope :: Scope
-window.lcrs = lispy_common_root_scope = fresh_root_scope()
-
-# lispy_run :: [Expr] -> [Value]
-window.lispy_run = lispy_run = (exprs) ->
+# run_lispy :: [Expr] -> Record
+window.run_lispy = run_lispy = (exprs) ->
     clear_call_records()
 
     cr = {stack: [], args: [], fn: ['nat', (() -> null), 'eval-root'], callees: []}
     interpreter_stack.push(cr)
 
     try
-        eval_scope = push_scope(lispy_common_root_scope, {})
-        in_order_map = _l.map
-        records = in_order_map exprs, (e) -> lispy_eval(eval_scope, e)
-
-        return {records, old_cr_format: cr}
+        iife = (expr) -> ['call', [['lambda', [], expr]]]
+        list_lit = (elem_exprs) -> ['call', [['var', '[]'], elem_exprs...]]
+        scope = fresh_root_scope()
+        return lispy_eval(scope, iife list_lit exprs)
 
     finally
         interpreter_stack.pop()
@@ -240,17 +236,21 @@ window.jscall_lispy = jscall_lispy = (lispy_closure) -> (js_call_args...) ->
 # Analysis
 
 # callee_records :: Record -> [Record]
-callee_records = (record) ->
+window.callee_records = callee_records = (record) ->
+    throw new Error('expected call record') unless record.expr[0] == 'call'
+    switch record.args[0].value[0]
+        when 'cl' then immediate_call_records(record.body)
+        when 'nat' then record.callees
+        else throw new Error('bad call')
+
+window.immediate_call_records = immediate_call_records = (record) ->
     _l.flatten _l.compact [
-        _l.flatMap(record.args, callee_records) if record.args?
-        callee_records(record.body) if expr[0] == 'set'
-        ([record.body]) if expr[0] == 'call'
-        record.callees
+        _l.flatMap(record.args, immediate_call_records) if record.args?
+        immediate_call_records(record.body)             if record.expr[0] == 'set'
+        ([record])                                      if record.expr[0] == 'call'
     ]
 
-# all_call_records :: Record -> [Record]
-all_call_records = (record) ->
-    [record].concat _l.flatMap callee_records(record), all_call_records
+
 
 immediate_subexprs_for_expr = (expr) ->
     switch expr[0]
@@ -457,7 +457,7 @@ window.lispy_code = lispy_code = """
 
 window.demo_parsed_lispy = demo_parsed_lispy = parse lispy_code
 window.all_exprs = _l.flatMap(demo_parsed_lispy, all_exprs_in_source_order)
-window.eval_results = eval_results = lispy_run(demo_parsed_lispy)
+window.root_record = root_record = run_lispy(demo_parsed_lispy)
 
 ##
 
@@ -523,7 +523,7 @@ exports.Lispy = class Lispy
         chunk_ranges = _l.zip([0].concat(chunk_delimiters), chunk_delimiters.concat([lispy_code.length]))
         chunks = chunk_ranges.map ([start, end]) -> [start, end, lispy_code.slice(start, end)]
 
-        chunks_with_vals = _l.zip(chunks, _l.map(eval_results.records, 'value'))
+        chunks_with_vals = _l.zip(chunks, root_record.value)
 
         panes = <div>
             { chunks_with_vals.map ([[chunk_start, chunk_end, chunk_source_code], eval_result], i) =>
@@ -603,10 +603,13 @@ exports.Lispy = class Lispy
 
         rk = (key) => (children) => <React.Fragment key={key} children={children} />
 
-        layout_entry = (cr) =>
-            lambda_name = switch cr.fn[0]
-                when 'nat' then cr.fn[2]
-                when 'cl'  then cr.fn.names?.values().next().value ? '<lambda>'
+        layout_entry = (call_record) =>
+            fn = call_record.args[0].value
+            callees = callee_records(call_record)
+
+            lambda_name = switch fn[0]
+                when 'nat' then fn[2]
+                when 'cl'  then fn.names?.values().next().value ? '<lambda>'
 
             leaf_size = {width: 80, height: 22}
             entry_spacing = {x: 3, y: 3}
@@ -627,17 +630,16 @@ exports.Lispy = class Lispy
                         fontSize: 14
                     }}
                     onClick={=>
-                        if cr.fn[0] == 'cl'
-                            @hl(cr.fn[2])
+                        if fn[0] == 'cl'
+                            @hl(fn[2])
                     }
                 />
-
-            callees = cr.callees
 
             if _l.isEmpty callees
                 {width: leaf_size.width, height: leaf_size.height, render: ({x, y}) ->
                     render_entry({x, y, width: leaf_size.width})
                 }
+
             else
                 children_layouts = callees.map(layout_entry)
                 width =  _l.sum(_l.map(children_layouts, 'width'))  + (children_layouts.length - 1) * entry_spacing.x
@@ -654,7 +656,7 @@ exports.Lispy = class Lispy
                     </React.Fragment>
                 }
 
-        tree_layout = layout_entry(eval_results.old_cr_format)
+        tree_layout = layout_entry(root_record)
         timeline =
             <div
                 style={
