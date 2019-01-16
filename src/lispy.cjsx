@@ -24,9 +24,9 @@ Value :: Number | String     # aka LitValue.
 Record :: {
     value: Value
     expr: Expr?, scope?: Scope      # unless an arg from a call into lispy from native
-    args: [Record]?                 # when .expr[0] == 'call'
-    body: Record?                   # when .expr[0] == 'call' and .args[0].value[0] == 'cl' or .expr[0] == 'set'
-    callees: [Record]?              # when .expr[0] == 'call' and .args[0].value[0] == 'nat'
+    args: [Record]?                 # when .expr[0] == 'call' or not .expr?
+    body: Record?                   # when .args? and .args[0].value[0] == 'cl' or .expr[0] == 'set'
+    callees: [Record]?              # when .args? and .args[0].value[0] == 'nat'
 }
 ###
 
@@ -60,11 +60,23 @@ push_scope = (parent, vars) -> {parent, vars}
 
 ## Interpreter
 
+active_native_record = null
+
 # lispy_call :: (Closure|Native) -> [Value] -> Value
 lispy_call = (fn, arg_values) ->
-    # TODO record this call as coming from native, if that's what's happening
-    # TODO make sure inner calls don't mistakenly think they're being called by our caller
-    lispy_call_internal(fn, arg_values).value
+    # if this is a callee of a native call, add this call's record to the
+    # active native call's .callees
+
+    [parent_native_call_record, active_native_record] = [active_native_record, null]
+    try
+
+        call_record = lispy_call_internal(fn, arg_values)
+        call_record.args = [fn].concat(arg_values).map((val) -> {value: val})
+        parent_native_call_record?.callees.push(call_record)
+        return call_record.value
+
+    finally
+        active_native_record = parent_native_call_record
 
 # lispy_call :: (Closure|Native) -> [Value] -> {value: Value, body: Record?, callees: [Record]?}
 lispy_call_internal = (fn, arg_values) ->
@@ -80,10 +92,13 @@ lispy_call_internal = (fn, arg_values) ->
 
         when 'nat'
             [_nat_ty, native_impl] = fn
-            value = native_impl(arg_values...)
-            # TODO collect callees
-            collected_callee_records = []
-            {value: value, callees: collected_callee_records}
+            active_native_record = record = {callees: []}
+            try
+                active_native_record.value = native_impl(arg_values...)
+                return record
+            # TODO control flow on excecptions: native and lispy
+            finally
+                active_native_record = null
 
         else
             throw new Error("called an object neither a lambda nor a native")
@@ -196,7 +211,7 @@ window.jscall_lispy = jscall_lispy = (lispy_closure) -> (js_call_args...) ->
 
 # callee_records :: Record -> [Record]
 window.callee_records = callee_records = (record) ->
-    throw new Error('expected call record') unless record.expr[0] == 'call'
+    throw new Error('expected call record') unless record.args?
     switch record.args[0].value[0]
         when 'cl' then immediate_call_records(record.body)
         when 'nat' then record.callees
