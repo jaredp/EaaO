@@ -63,7 +63,10 @@ push_scope = (parent, vars) -> {parent, vars}
 active_native_record = null
 
 # lispy_call :: (Closure|Native) -> [Value] -> Value
-lispy_call = (fn, arg_values) ->
+lispy_call = (fn, arg_values) -> lispy_record_call(fn, arg_values).value
+
+# lispy_record_call :: (Closure|Native) -> [Value] -> Record
+lispy_record_call = (fn, arg_values) ->
     # if this is a callee of a native call, add this call's record to the
     # active native call's .callees
 
@@ -73,7 +76,7 @@ lispy_call = (fn, arg_values) ->
         call_record = lispy_call_internal(fn, arg_values)
         call_record.args = [fn].concat(arg_values).map((val) -> {value: val})
         parent_native_call_record?.callees.push(call_record)
-        return call_record.value
+        return call_record
 
     finally
         active_native_record = parent_native_call_record
@@ -185,7 +188,7 @@ window.fresh_root_scope = fresh_root_scope = ->
             _l.fromPairs(_l.chunk(kvpairs, 2))
 
         record: (closure) ->
-            lispy_call_internal(closure, []).body
+            return lispy_record_call(closure, []).body
     }
 
     builtin_literal_values = {
