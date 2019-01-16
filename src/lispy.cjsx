@@ -60,10 +60,6 @@ push_scope = (parent, vars) -> {parent, vars}
 
 ## Interpreter
 
-window.call_records = call_records = []
-clear_call_records = ->
-    call_records.splice(0, call_records.length)
-clear_call_records()
 interpreter_stack = []
 
 # lispy_call :: (Closure|Native) -> [Value] -> Value
@@ -75,7 +71,6 @@ lispy_call = (fn, arg_values) ->
 # lispy_call :: (Closure|Native) -> [Value] -> {value: Value, body: Record?, callees: [Record]?}
 lispy_call_internal = (fn, arg_values) ->
     cr = {fn, args: arg_values, stack: interpreter_stack.slice(), callees: []}
-    call_records.push(cr)
     _l.last(interpreter_stack).callees.push(cr)
     interpreter_stack.push(cr)
 
@@ -212,8 +207,6 @@ window.fresh_root_scope = fresh_root_scope = ->
 
 # run_lispy :: [Expr] -> Record
 window.run_lispy = run_lispy = (exprs) ->
-    clear_call_records()
-
     cr = {stack: [], args: [], fn: ['nat', (() -> null), 'eval-root'], callees: []}
     interpreter_stack.push(cr)
 
