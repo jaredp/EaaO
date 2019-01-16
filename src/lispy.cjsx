@@ -423,15 +423,19 @@ window.lispy_code = lispy_code = """
 (record (() -> (fib 4)))
 """
 
+# demo_parsed_lispy :: [Expr]
 window.demo_parsed_lispy = demo_parsed_lispy = parse lispy_code
+
+# all_exprs :: [Expr]
 window.all_exprs = _l.flatMap(demo_parsed_lispy, all_exprs_in_source_order)
 
-fake_multi_expr_as_one_for_ui = (exprs) ->
+# fake_multi_expr_as_one_for_ui :: Expr
+fake_multi_expr_as_one_for_ui = do ->
     iife = (expr) -> ['call', [['lambda', [], expr]]]
     list_lit = (elem_exprs) -> ['call', [['var', '[]'], elem_exprs...]]
-    return iife list_lit exprs
+    return iife list_lit demo_parsed_lispy
 
-window.root_record = root_record = lispy_eval(fresh_root_scope(), fake_multi_expr_as_one_for_ui demo_parsed_lispy)
+window.root_record = root_record = lispy_eval(fresh_root_scope(), fake_multi_expr_as_one_for_ui)
 
 ##
 
