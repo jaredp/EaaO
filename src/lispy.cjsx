@@ -60,8 +60,6 @@ push_scope = (parent, vars) -> {parent, vars}
 
 ## Interpreter
 
-interpreter_stack = []
-
 # lispy_call :: (Closure|Native) -> [Value] -> Value
 lispy_call = (fn, arg_values) ->
     # TODO record this call as coming from native, if that's what's happening
@@ -70,41 +68,25 @@ lispy_call = (fn, arg_values) ->
 
 # lispy_call :: (Closure|Native) -> [Value] -> {value: Value, body: Record?, callees: [Record]?}
 lispy_call_internal = (fn, arg_values) ->
-    cr = {fn, args: arg_values, stack: interpreter_stack.slice(), callees: []}
-    _l.last(interpreter_stack).callees.push(cr)
-    interpreter_stack.push(cr)
+    throw new Error('called an object neither a lambda nor a native') unless _l.isArray(fn)
+    return switch fn[0]
+        when 'cl'
+            [_cl_ty, captured_scope, [_lambdakwd, arg_names, body]] = fn
+            throw new Error("called a closure made without a lambda?") if _lambdakwd != 'lambda'
+            callee_scope = push_scope(captured_scope, _l.fromPairs _l.zip(arg_names, arg_values))
 
-    try
-        throw new Error('called an object neither a lambda nor a native') unless _l.isArray(fn)
-        retval = switch fn[0]
-            when 'cl'
-                [_cl_ty, captured_scope, [_lambdakwd, arg_names, body]] = fn
-                throw new Error("called a closure made without a lambda?") if _lambdakwd != 'lambda'
-                callee_scope = push_scope(captured_scope, _l.fromPairs _l.zip(arg_names, arg_values))
+            body_record = lispy_eval(callee_scope, body)
+            {value: body_record.value, body: body_record}
 
-                # record the scope for future introspection
-                cr.scope = callee_scope
+        when 'nat'
+            [_nat_ty, native_impl] = fn
+            value = native_impl(arg_values...)
+            # TODO collect callees
+            collected_callee_records = []
+            {value: value, callees: collected_callee_records}
 
-                body_record = lispy_eval(callee_scope, body)
-                {value: body_record.value, body: body_record}
-
-            when 'nat'
-                [_nat_ty, native_impl] = fn
-                value = native_impl(arg_values...)
-                # TODO collect callees
-                collected_callee_records = []
-                {value: value, callees: collected_callee_records}
-
-            else
-                throw new Error("called an object neither a lambda nor a native")
-
-        cr.retval = retval
-        return retval
-
-    finally
-        interpreter_stack.pop()
-        arrays_equal = (a, b) -> a.length == b.length and _l.every [0...a.length], (i) -> a[i] == b[i]
-        throw new Error("corrupted stack") unless arrays_equal(interpreter_stack, cr.stack)
+        else
+            throw new Error("called an object neither a lambda nor a native")
 
 # lispy_eval :: Scope -> Expr -> Record
 lispy_eval = (scope, expr) ->
@@ -206,18 +188,10 @@ window.fresh_root_scope = fresh_root_scope = ->
 
 # run_lispy :: [Expr] -> Record
 window.run_lispy = run_lispy = (exprs) ->
-    cr = {stack: [], args: [], fn: ['nat', (() -> null), 'eval-root'], callees: []}
-    interpreter_stack.push(cr)
-
-    try
-        iife = (expr) -> ['call', [['lambda', [], expr]]]
-        list_lit = (elem_exprs) -> ['call', [['var', '[]'], elem_exprs...]]
-        scope = fresh_root_scope()
-        return lispy_eval(scope, iife list_lit exprs)
-
-    finally
-        interpreter_stack.pop()
-        throw new Error("corrupted stack") unless _l.isEmpty(interpreter_stack)
+    iife = (expr) -> ['call', [['lambda', [], expr]]]
+    list_lit = (elem_exprs) -> ['call', [['var', '[]'], elem_exprs...]]
+    scope = fresh_root_scope()
+    return lispy_eval(scope, iife list_lit exprs)
 
 # jscall_lispy :: Closure -> JSClosure
 # where JSClosure = (Value...) -> Value
