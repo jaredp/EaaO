@@ -260,7 +260,7 @@ window.recursive_records_in_eval_order = recursive_records_in_eval_order = (reco
 ## Syntax
 
 # parse :: SourceString -> [Expr]
-parse = (str) ->
+window.parse = parse = (str) ->
     tokens = tokenize_source_str(str)
     asts = parse_asts_for_exprs(tokens)
     return asts.map(ast_to_expr)
@@ -478,6 +478,7 @@ exports.Lispy = class Lispy
         cycle_through_elems_forever = ({delay, lst, fn}) ->
             tick_forever delay, (tick) => fn lst[tick % lst.length]
 
+        # FIXME: this doesn't seem to dip into fib's recursion
         cycle_through_elems_forever({
             delay: 500
             lst: all_records.filter (record) -> record.expr?
@@ -489,7 +490,8 @@ exports.Lispy = class Lispy
     hl: (parsed_object) ->
         {source_range} = parsed_object
         @highlight_range = (source_range ? null)
-        @react_root.forceUpdate()
+        @react_root.forceUpdate =>
+            @react_root.refs.highlighted_chunk?.scrollIntoView({behavior: "smooth"})
 
     unhighlight: ->
         @highlight_range = null
@@ -576,7 +578,7 @@ exports.Lispy = class Lispy
                                 postfix     = chunk_source_code.slice(highlight_end)
                                 <React.Fragment>
                                     {prefix}
-                                    <span style={
+                                    <span ref="highlighted_chunk" style={
                                         backgroundColor: '#bbbbf7'
                                         margin: '-2px -5px'
                                         padding: '2px 5px'
