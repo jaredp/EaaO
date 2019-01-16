@@ -186,13 +186,6 @@ window.fresh_root_scope = fresh_root_scope = ->
         parent: null,
     }
 
-# run_lispy :: [Expr] -> Record
-window.run_lispy = run_lispy = (exprs) ->
-    iife = (expr) -> ['call', [['lambda', [], expr]]]
-    list_lit = (elem_exprs) -> ['call', [['var', '[]'], elem_exprs...]]
-    scope = fresh_root_scope()
-    return lispy_eval(scope, iife list_lit exprs)
-
 # jscall_lispy :: Closure -> JSClosure
 # where JSClosure = (Value...) -> Value
 window.jscall_lispy = jscall_lispy = (lispy_closure) -> (js_call_args...) ->
@@ -432,7 +425,13 @@ window.lispy_code = lispy_code = """
 
 window.demo_parsed_lispy = demo_parsed_lispy = parse lispy_code
 window.all_exprs = _l.flatMap(demo_parsed_lispy, all_exprs_in_source_order)
-window.root_record = root_record = run_lispy(demo_parsed_lispy)
+
+fake_multi_expr_as_one_for_ui = (exprs) ->
+    iife = (expr) -> ['call', [['lambda', [], expr]]]
+    list_lit = (elem_exprs) -> ['call', [['var', '[]'], elem_exprs...]]
+    return iife list_lit exprs
+
+window.root_record = root_record = lispy_eval(fresh_root_scope(), fake_multi_expr_as_one_for_ui demo_parsed_lispy)
 
 ##
 
