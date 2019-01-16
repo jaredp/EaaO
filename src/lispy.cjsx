@@ -220,8 +220,8 @@ window.callee_records = callee_records = (record) ->
 window.immediate_call_records = immediate_call_records = (record) ->
     _l.flatten _l.compact [
         _l.flatMap(record.args, immediate_call_records) if record.args?
-        immediate_call_records(record.body)             if record.expr[0] == 'set'
-        ([record])                                      if record.expr[0] == 'call'
+        immediate_call_records(record.body)             if record.expr?[0] == 'set'
+        ([record])                                      if record.expr?[0] == 'call'
     ]
 
 
@@ -247,9 +247,9 @@ window.all_exprs_in_eval_order = all_exprs_in_eval_order = (expr) ->
 window.recursive_records_in_eval_order = recursive_records_in_eval_order = (record) ->
     _l.flatten _l.compact [
         _l.flatMap(record.args, recursive_records_in_eval_order) if record.args?
-        recursive_records_in_eval_order(record.body) if record.body? and record.expr[0] == 'set'
+        recursive_records_in_eval_order(record.body) if record.body? and record.expr?[0] == 'set'
         [record]
-        recursive_records_in_eval_order(record.body) if record.body? and record.expr[0] == 'call'
+        recursive_records_in_eval_order(record.body) if record.body? and record.expr?[0] == 'call'
         _l.flatMap(record.callees, recursive_records_in_eval_order) if record.callees?
     ]
 
@@ -451,6 +451,7 @@ fake_multi_expr_as_one_for_ui = do ->
     return iife list_lit demo_parsed_lispy
 
 window.root_record = root_record = lispy_eval(fresh_root_scope(), fake_multi_expr_as_one_for_ui)
+window.all_records = all_records = recursive_records_in_eval_order(root_record)
 
 ##
 
@@ -471,11 +472,14 @@ exports.Lispy = class Lispy
             ((o) -> window.setInterval(o, cycle_time_ms)) () =>
                 fn(ticks)
                 ticks += 1
-        cycle_through_elems_forever = (delay, lst, fn) ->
+        cycle_through_elems_forever = ({delay, lst, fn}) ->
             tick_forever delay, (tick) => fn lst[tick % lst.length]
 
-        records = recursive_records_in_eval_order(root_record)
-        cycle_through_elems_forever 500, records, (record) => @hl record.expr
+        cycle_through_elems_forever({
+            delay: 500
+            lst: all_records.filter (record) -> record.expr?
+            fn: (record) => @hl record.expr
+        })
 
 
     # parsed_object is something that has a source_range, typically a token or expr
