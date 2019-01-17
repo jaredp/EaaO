@@ -441,6 +441,15 @@ window.lispy_code = lispy_code = """
 (. simple_object :nested)
 (map (range 12) fib)
 (record (() -> (fib 4)))
+
+
+(cons = ((hd tl) -> ((d) -> (d hd tl))))
+(car = ((p) -> (p ((hd tl) -> hd))))
+(cdr = ((p) -> (p ((hd tl) -> tl))))
+
+(p = (cons :foo :bar))
+(car p)
+(cdr p)
 """
 
 # demo_parsed_lispy :: [Expr]
