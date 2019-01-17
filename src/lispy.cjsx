@@ -249,11 +249,13 @@ window.all_exprs_in_eval_order = all_exprs_in_eval_order = (expr) ->
 
 window.recursive_records_in_eval_order = recursive_records_in_eval_order = (record) ->
     _l.flatten _l.compact [
-        _l.flatMap(record.args, recursive_records_in_eval_order) if record.args?
+        _l.flatMap(record.args, recursive_records_in_eval_order) if record.args? and record.expr?
         recursive_records_in_eval_order(record.body) if record.body? and record.expr?[0] == 'set'
         [record]
-        recursive_records_in_eval_order(record.body) if record.body? and record.expr?[0] == 'call'
-        _l.flatMap(record.callees, recursive_records_in_eval_order) if record.callees?
+        recursive_records_in_eval_order(record.body) if record.body? and record.expr?[0] != 'set'
+        _l.flatMap(record.callees, (callee) ->
+            [callee].concat(recursive_records_in_eval_order(callee.body))
+        ) if record.callees?
     ]
 
 
