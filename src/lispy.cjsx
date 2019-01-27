@@ -173,6 +173,8 @@ window.fresh_root_scope = fresh_root_scope = ->
 
         '[]': (args...) -> args
         call: (fn, args) -> lispy_call(fn, args)
+        jsc: (jsfn, args...) -> jsfn.apply(null, args)
+        jsmc: (obj, method_name, args...) -> obj[method].apply(obj, args)
 
         # naturally goes with `set!`; relies on order of evaluation
         ';': (stmts...) -> _l.last(stmts)
@@ -206,8 +208,20 @@ window.fresh_root_scope = fresh_root_scope = ->
 
 # jscall_lispy :: Closure -> JSClosure
 # where JSClosure = (Value...) -> Value
-window.jscall_lispy = jscall_lispy = (lispy_closure) -> (js_call_args...) ->
-    lispy_call(lispy_closure, js_call_args)
+window.jscall_lispy = jscall_lispy = (lispy_closure) ->
+    jsfn = (js_call_args...) -> lispy_call(lispy_closure, js_call_args)
+    jsfn.lispy_closure = lispy_closure
+    return jsfn
+
+LispyCode_to_JsFn = (consts, code) ->
+    throw new Error("consts should be an object") unless _l.isPlainObject(consts)
+    throw new Error("code should be a string") unless _l.isString(code)
+    tokens = tokenize_source_str(code)
+    asts = parse_asts_for_exprs(tokens)
+    throw new Error('expected one toplevel lambda expr') unless asts.length == 1
+    lambda_expr = ast_to_expr(asts[0])
+    throw new Error('expected one toplevel lambda expr') if lambda_expr[0] != 'lambda'
+    jscall_lispy(['cl', push_scope(fresh_root_scope(), consts), lambda_expr])
 
 
 # Analysis
