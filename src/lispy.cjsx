@@ -4,7 +4,13 @@ _l = require 'lodash'
 { inspect } = require 'util'
 ordered_map = _l.map
 
+
+window.cl = cl = Symbol('cl')
 ###
+OldNative  :: ['nat', (Value...) -> Value, String?] # the string at the end is an optional human-readable label
+OldClosure :: ['cl', Scope, Lambda, names: Set(String)?]
+
+
 Var :: String
 Scope :: {parent: Scope|null, vars: {Var: Value}}
 Expr :: (Lambda = ['lambda', [Var], Expr])
@@ -12,8 +18,8 @@ Expr :: (Lambda = ['lambda', [Var], Expr])
       | ['var',     Var]
       | ['lit',     LitValue]
       | ['set',     Var, Expr]
-Closure :: ['cl', Scope, Lambda, names: Set(String)?]
-Native  :: ['nat', (Value...) -> Value, String?] # the string at the end is an optional human-readable label
+Native  :: a Javascript function
+Closure :: Native + {cl: [Scope, Lambda, names: Set(String)?]}
 Callable :: Closure | Native
 LitValue :: Number | String # note the underlying JS implementations are immutable
 Value :: Number | String     # aka LitValue.
@@ -62,9 +68,6 @@ push_scope = (parent, vars) -> {parent, vars}
 
 active_native_record = null
 
-# lispy_call :: (Closure|Native) -> [Value] -> Value
-lispy_call = (fn, arg_values) -> lispy_record_call(fn, arg_values).value
-
 # lispy_record_call :: (Closure|Native) -> [Value] -> Record
 lispy_record_call = (fn, arg_values) ->
     # if this is a callee of a native call, add this call's record to the
@@ -81,30 +84,29 @@ lispy_record_call = (fn, arg_values) ->
     finally
         active_native_record = parent_native_call_record
 
-# lispy_call :: (Closure|Native) -> [Value] -> {value: Value, body: Record?, callees: [Record]?}
+# lispy_call_internal :: (Closure|Native) -> [Value] -> {value: Value, body: Record?, callees: [Record]?}
 lispy_call_internal = (fn, arg_values) ->
-    throw new Error('called an object neither a lambda nor a native') unless _l.isArray(fn)
-    return switch fn[0]
-        when 'cl'
-            [_cl_ty, captured_scope, [_lambdakwd, arg_names, body]] = fn
-            throw new Error("called a closure made without a lambda?") if _lambdakwd != 'lambda'
-            callee_scope = push_scope(captured_scope, _l.fromPairs _l.zip(arg_names, arg_values))
+    if fn[cl]?
+        [captured_scope, [_lambdakwd, arg_names, body]] = fn[cl]
+        callee_scope = push_scope(captured_scope, _l.fromPairs _l.zip(arg_names, arg_values))
+        body_record = lispy_eval(callee_scope, body)
+        {value: body_record.value, body: body_record}
 
-            body_record = lispy_eval(callee_scope, body)
-            {value: body_record.value, body: body_record}
+    else
+        record = {callees: []}
+        active_native_record = record
+        try
+            record.value = fn(arg_values...)
+            return record
+        # TODO control flow on excecptions: native and lispy
+        finally
+            active_native_record = null
 
-        when 'nat'
-            [_nat_ty, native_impl] = fn
-            active_native_record = record = {callees: []}
-            try
-                active_native_record.value = native_impl(arg_values...)
-                return record
-            # TODO control flow on excecptions: native and lispy
-            finally
-                active_native_record = null
-
-        else
-            throw new Error("called an object neither a lambda nor a native")
+# make_closure :: Scope -> Expr -> Closure
+window.make_closure = make_closure = (scope, expr) ->
+    jsfn = (js_call_args...) -> lispy_record_call(jsfn, js_call_args).value
+    jsfn[cl] = [scope, expr]
+    return jsfn
 
 # lispy_eval :: Scope -> Expr -> Record
 lispy_eval = (scope, expr) ->
@@ -117,7 +119,7 @@ lispy_eval = (scope, expr) ->
 
         when 'lambda'
             [args, body] = params
-            ['cl', scope, expr]
+            make_closure(scope, expr)
 
         when 'lit'
             [val] = params
@@ -131,8 +133,8 @@ lispy_eval = (scope, expr) ->
             # track closures' names for debugging
             # approach: sketchily guess if it looks like a closure
             # Debugging tool idea: find all the names any object's been given, ever
-            if _l.isArray(record.body.value) and record.body.value[0] == 'cl'
-                (record.body.value.names ?= new Set()).add(varname)
+            if record.body.value[cl]?
+                (record.body.value[cl].names ?= new Set()).add(varname)
 
             record.body.value
 
@@ -155,7 +157,7 @@ lispy_eval = (scope, expr) ->
 # fresh_root_scope :: -> Scope
 window.fresh_root_scope = fresh_root_scope = ->
     # builtin_native_fns :: {Var: (Value...) -> Value}
-    builtin_native_fns = {
+    builtins = {
         '+':  (a, b) -> a + b
         '-':  (a, b) -> a - b
         '*':  (a, b) -> a * b
@@ -169,10 +171,10 @@ window.fresh_root_scope = fresh_root_scope = ->
 
         'if': (pred, if_true, if_false) ->
             winning_branch = if pred == true then if_true else if_false
-            lispy_call(winning_branch, [])
+            return winning_branch()
 
         '[]': (args...) -> args
-        call: (fn, args) -> lispy_call(fn, args)
+        call: (fn, args) -> fn(args...)
         jsc: (jsfn, args...) -> jsfn.apply(null, args)
         jsmc: (obj, method_name, args...) -> obj[method].apply(obj, args)
 
@@ -181,7 +183,7 @@ window.fresh_root_scope = fresh_root_scope = ->
 
         str_to_int: (str) -> Number(str)
         range: (n) -> [0...n]
-        map: (lst, fn) -> lst.map (e) -> lispy_call(fn, [e])
+        map: (lst, fn) -> lst.map (e) -> fn(e)
         '.': (o, member) -> o[member]
         '@': (o, method, args...) -> o[method](args...)
         '{}': (kvpairs...) ->
@@ -191,27 +193,12 @@ window.fresh_root_scope = fresh_root_scope = ->
 
         record: (closure) ->
             return lispy_record_call(closure, []).body
-    }
 
-    builtin_literal_values = {
         null: null
         console
     }
 
-    return {
-        vars: _l.extend({},
-            _l.mapValues(builtin_native_fns, (impl, name) -> ['nat', impl, name]),
-            builtin_literal_values
-        )
-        parent: null,
-    }
-
-# jscall_lispy :: Closure -> JSClosure
-# where JSClosure = (Value...) -> Value
-window.jscall_lispy = jscall_lispy = (lispy_closure) ->
-    jsfn = (js_call_args...) -> lispy_call(lispy_closure, js_call_args)
-    jsfn.lispy_closure = lispy_closure
-    return jsfn
+    return {vars: builtins, parent: null}
 
 LispyCode_to_JsFn = (consts, code) ->
     throw new Error("consts should be an object") unless _l.isPlainObject(consts)
@@ -221,7 +208,7 @@ LispyCode_to_JsFn = (consts, code) ->
     throw new Error('expected one toplevel lambda expr') unless asts.length == 1
     lambda_expr = ast_to_expr(asts[0])
     throw new Error('expected one toplevel lambda expr') if lambda_expr[0] != 'lambda'
-    jscall_lispy(['cl', push_scope(fresh_root_scope(), consts), lambda_expr])
+    make_closure(push_scope(fresh_root_scope(), consts), lambda_expr)
 
 
 # Analysis
@@ -229,10 +216,9 @@ LispyCode_to_JsFn = (consts, code) ->
 # callee_records :: Record -> [Record]
 window.callee_records = callee_records = (record) ->
     throw new Error('expected call record') unless record.args?
-    switch record.args[0].value[0]
-        when 'cl' then immediate_call_records(record.body)
-        when 'nat' then record.callees
-        else throw new Error('bad call')
+    if record.args[0].value[cl]?
+    then immediate_call_records(record.body)
+    else record.callees
 
 window.immediate_call_records = immediate_call_records = (record) ->
     _l.flatten _l.compact [
@@ -637,16 +623,17 @@ exports.Lispy = class Lispy
             if record.expr?
                 @hl(record.expr)
 
-            else if record.args?[0].value[0] == 'cl'
-                @hl(record.args[0].value[2])
+            else if record.args?[0].value[cl]?
+                @hl(record.args[0].value[cl][1])
 
         layout_entry = (call_record) =>
             fn = call_record.args[0].value
             callees = callee_records(call_record)
 
-            lambda_name = switch fn[0]
-                when 'nat' then fn[2]
-                when 'cl'  then fn.names?.values().next().value ? '<lambda>'
+            lambda_name =
+                if fn[cl]?
+                then fn[cl].names?.values().next().value ? '<lambda>'
+                else fn.name
 
             leaf_size = {width: 80, height: 22}
             entry_spacing = {x: 3, y: 3}
