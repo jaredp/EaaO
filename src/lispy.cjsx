@@ -500,7 +500,6 @@ pane_style = {
 
 exports.Lispy = class Lispy
     init: (@react_root) ->
-        window.ui = this
         @highlight_range = null # {start: {line: int, col: int}, end: {line: int, col: int}}
 
         # safely use window.innerWidth in render()
@@ -881,6 +880,7 @@ exports.App = createReactClass
         @app_state = switch window.location.hash
             when '#classic' then new Classic()
             else new Lispy()
+        window.ui = @app_state
         @app_state.init(this)
 
     componentDidMount: ->
