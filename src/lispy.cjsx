@@ -721,3 +721,13 @@ caret_in_dom_text_for_evt = ({evt, is_root_container}) ->
         cursor += dom_container.textContent.length
 
     return cursor
+
+exports.App = createReactClass
+    componentWillMount: ->
+        @app_state = new Lispy()
+        @app_state.init(this)
+
+    componentDidMount: ->
+        @app_state.did_mount()
+
+    render: -> @app_state.render()
