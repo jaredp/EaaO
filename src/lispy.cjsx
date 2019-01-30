@@ -529,11 +529,6 @@ exports.Lispy = class Lispy
             overflow: 'auto'
         }
 
-        pane = ({contents, style}) ->
-            <code style={_l.extend({}, pane_style, style)}>
-                { contents }
-            </code>
-
         chunk_delimiters = _l.map(demo_parsed_lispy, 'source_range.1').slice(0, -1)
         chunk_ranges = _l.zip([0].concat(chunk_delimiters), chunk_delimiters.concat([lispy_code.length]))
         chunks = chunk_ranges.map ([start, end]) -> [start, end, lispy_code.slice(start, end)]
@@ -604,14 +599,11 @@ exports.Lispy = class Lispy
 
                     <div style={width: margin} />
 
-                    {pane({
-                        style:
-                            flex: 1
-                        contents:
-                            <div key={i}>
-                                {ppjson(eval_result)}
-                            </div>
-                    })}
+                    <code style={_l.extend({}, pane_style, flex: 1)}>
+                        <div key={i}>
+                            { ppjson(eval_result) }
+                        </div>
+                    </code>
                 </div>
             }
         </div>
@@ -722,9 +714,21 @@ caret_in_dom_text_for_evt = ({evt, is_root_container}) ->
 
     return cursor
 
+
+class Classic
+    init: (@react_root) ->
+    did_mount: ->
+    render: ->
+        <code>
+            { lispy_code }
+        </code>
+
+
 exports.App = createReactClass
     componentWillMount: ->
-        @app_state = new Lispy()
+        @app_state = switch window.location.hash
+            when '#classic' then new Classic()
+            else new Lispy()
         @app_state.init(this)
 
     componentDidMount: ->
