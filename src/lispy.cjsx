@@ -486,6 +486,18 @@ window.call_records = call_records = preorder root_record, callee_records
 
 ##
 
+[pane_margin, pane_padding] = [20, 10]
+pane_style = {
+    padding: pane_padding
+    display: 'block'
+    backgroundColor: '#EFEFEF'
+    borderRadius: 5
+    whiteSpace: 'pre'
+    fontSize: 14
+    overflow: 'auto'
+}
+
+
 exports.Lispy = class Lispy
     init: (@react_root) ->
         window.ui = this
@@ -528,17 +540,6 @@ exports.Lispy = class Lispy
     be_safe: yes
 
     render: ->
-        [margin, padding] = [20, 10]
-        pane_style = {
-            padding
-            display: 'block'
-            backgroundColor: '#EFEFEF'
-            borderRadius: 5
-            whiteSpace: 'pre'
-            fontSize: 14
-            overflow: 'auto'
-        }
-
         chunk_delimiters = _l.map(demo_parsed_lispy, 'source_range.1').slice(0, -1)
         chunk_ranges = _l.zip([0].concat(chunk_delimiters), chunk_delimiters.concat([lispy_code.length]))
         chunks = chunk_ranges.map ([start, end]) -> [start, end, lispy_code.slice(start, end)]
@@ -563,8 +564,7 @@ exports.Lispy = class Lispy
                     else null
 
                 <div key={i} style={{
-                    margin
-                    # minHeight: "calc(100vh - 2*#{margin}px)"
+                    margin: pane_margin
                     display: 'flex'
                     flexDirection: 'row'
                     flex: '1 1'
@@ -607,7 +607,7 @@ exports.Lispy = class Lispy
                         }
                     </code>
 
-                    <div style={width: margin} />
+                    <div style={width: pane_margin} />
 
                     <code style={_l.extend({}, pane_style, flex: 1)}>
                         <div key={i}>
@@ -770,15 +770,111 @@ caret_in_dom_text_for_evt = ({evt, is_root_container}) ->
 
     return cursor
 
+##
 
 class Classic
     init: (@react_root) ->
-    did_mount: ->
-    render: ->
-        <code>
-            { lispy_code }
-        </code>
+        @records = all_records.filter (r) -> r.expr?.source_range?
+        @time_cursor = 0
 
+    did_mount: ->
+
+    update_hl: ->
+        @react_root.forceUpdate =>
+            @react_root.refs.highlighted_chunk?.scrollIntoView({behavior: "smooth"})
+
+    render: ->
+        current_record = @records[@time_cursor]
+        highlight_range = current_record.expr.source_range
+
+        chunk_delimiters = _l.map(demo_parsed_lispy, 'source_range.1').slice(0, -1)
+        chunk_ranges = _l.zip([0].concat(chunk_delimiters), chunk_delimiters.concat([lispy_code.length]))
+        chunks = chunk_ranges.map ([start, end]) -> [start, end, lispy_code.slice(start, end)]
+
+        # panes really can be factored out into {SourceString, chunk_delimiters: [int], highlight_range: Range} -> [React.Element]
+        panes = <div>
+            { chunks.map ([chunk_start, chunk_end, chunk_source_code], i) =>
+                while chunk_source_code[0] == '\n'
+                    chunk_start += 1
+                    chunk_source_code = chunk_source_code.slice(1)
+
+                range_intersection = ([s1, e1], [s2, e2]) -> [Math.max(s1, s2), Math.min(e1, e2)]
+                range_size = ([start, end]) -> Math.max(0, end - start)
+                ranges_overlap = (r1, r2) -> range_size(range_intersection(r1, r2)) > 0
+                range_offset = ([start, end], offset) -> [start + offset, end + offset]
+
+                chunk_range = [chunk_start, chunk_end]
+                chunk_highlight =
+                    if highlight_range and ranges_overlap(highlight_range, chunk_range)
+                        range_offset (range_intersection highlight_range, chunk_range), -chunk_start
+                    else null
+
+                <div key={i} style={{
+                    margin: pane_margin
+                    display: 'flex'
+                    flexDirection: 'row'
+                    flex: '1 1'
+                }}>
+                    <code
+                        style={_l.extend({}, pane_style, flex: 1)}
+                        onClick={(e) =>
+                            cursor_in_chunk = caret_in_dom_text_for_evt({evt: e, is_root_container: (dom) -> dom.tagName == 'CODE'})
+                            (@unhighlight(); return) unless cursor_in_chunk?
+                        }
+                    >
+                        {
+                            if chunk_highlight == null
+                                chunk_source_code
+
+                            else
+                                [highlight_start, highlight_end] = chunk_highlight
+                                prefix      = chunk_source_code.slice(0, highlight_start)
+                                highlighted = chunk_source_code.slice(highlight_start, highlight_end)
+                                postfix     = chunk_source_code.slice(highlight_end)
+                                <React.Fragment>
+                                    {prefix}
+                                    <span ref="highlighted_chunk" style={
+                                        backgroundColor: '#bbbbf7'
+                                        margin: '-2px -5px'
+                                        padding: '2px 5px'
+                                        borderRadius: 3
+                                    }>
+                                        {highlighted}
+                                    </span>
+                                    {postfix}
+                                </React.Fragment>
+                        }
+                    </code>
+                </div>
+            }
+        </div>
+
+        <div style={display: 'flex', flexDirection: 'row', height: '100vh', alignItems: 'stretch'}>
+            <div style={flex: 1, overflow: 'auto'}>
+                { panes }
+            </div>
+
+            <div style={width: 1, backgroundColor: 'rgb(240, 240, 240)'} />
+
+            <div style={width: 300, padding: pane_margin}>
+                Debugging Controls
+                <button onClick={=> @next()} children="next" />
+                <button onClick={=> @prev()} children="prev" />
+                <hr />
+                Stack Trace
+            </div>
+        </div>
+
+    next: ->
+        @time_cursor += 1
+        @update_hl()
+
+    prev: ->
+        @time_cursor -= 1
+        @update_hl()
+
+
+##
 
 exports.App = createReactClass
     componentWillMount: ->
