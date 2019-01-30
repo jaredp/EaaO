@@ -774,7 +774,7 @@ caret_in_dom_text_for_evt = ({evt, is_root_container}) ->
 
 class Classic
     init: (@react_root) ->
-        @records = all_records.filter (r) -> r.expr?.source_range?
+        @records = all_records.filter (r) -> r.expr?.source_range? and r.expr?[0] not in ['var', 'lambda', 'lit']
         @time_cursor = 0
 
     did_mount: ->
