@@ -250,6 +250,9 @@ window.all_exprs_in_source_order = all_exprs_in_source_order = (expr) ->
 window.all_exprs_in_eval_order = all_exprs_in_eval_order = (expr) ->
     _l.flatMap(immediate_subexprs_for_expr(expr), all_exprs_in_eval_order).concat [expr]
 
+window.all_subexprs = all_subexprs = all_exprs_in_source_order
+
+
 window.recursive_records_in_eval_order = recursive_records_in_eval_order = (record) ->
     _l.flatten _l.compact [
         _l.flatMap(record.args, recursive_records_in_eval_order) if record.args? and record.expr?
@@ -261,6 +264,11 @@ window.recursive_records_in_eval_order = recursive_records_in_eval_order = (reco
         ) if record.callees?
     ]
 
+
+closure_name = (fn) ->
+    if fn[cl]?
+    then fn[cl].names?.values().next().value ? '<lambda>'
+    else fn.name
 
 ## Syntax
 
@@ -446,7 +454,7 @@ window.lispy_code = lispy_code = """
 (record (() -> (fib 4)))
 
 
-(cons = ((hd tl) -> ((d) -> (d hd tl))))
+(cons = ((head tl) -> ((d) -> (d head tl))))
 (car = ((p) -> (p ((hd tl) -> hd))))
 (cdr = ((p) -> (p ((hd tl) -> tl))))
 
@@ -515,13 +523,6 @@ exports.Lispy = class Lispy
 
     render: ->
         [margin, padding] = [20, 10]
-        ppjson = (json) ->
-            try
-                JSON.stringify(json, null, '    ')
-            catch e
-                inspect(json)
-                # "<Can't pp: #{e}>"
-
         pane_style = {
             padding
             display: 'block'
@@ -604,7 +605,58 @@ exports.Lispy = class Lispy
 
                     <code style={_l.extend({}, pane_style, flex: 1)}>
                         <div key={i}>
-                            { ppjson(eval_result) }
+                            {
+                                if eval_result?[cl]?
+                                    token = (children) ->
+                                        <span children={children} style={
+                                            backgroundColor: 'rgb(116, 203, 135)';
+                                            color: '#ffffffb0';
+                                            margin: '-2px 0'
+                                            padding: '2px 5px'
+                                            borderRadius: 3
+                                        } />
+
+                                    # props_table :: [(label, value)] -> React.Element
+                                    props_table = ({data, onClick}) ->
+                                        <table onClick={onClick}>
+                                            <tbody>
+                                                {
+                                                    data.map ([label, value], i) ->
+                                                        <tr key={i}>
+                                                            <td style={
+                                                                textAlign: 'right'
+                                                                width: 60
+                                                                color: '#000000a1'
+                                                                fontSize: '0.8em'
+                                                                verticalAlign: 'middle'
+                                                            }><code children={label} /></td>
+                                                            <td>{value}</td>
+                                                        </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+
+                                    [scope, lambda] = eval_result[cl]
+                                    var_exprs = all_subexprs(lambda).filter(([ty]) -> ty == 'var')
+                                    refed_vars = _l.uniq _l.map(var_exprs, '1')
+                                    captured_vars = refed_vars.filter (varname) ->
+                                        var_lookup(scope, varname) not in [no_such_var, var_lookup(root_record.body.scope, varname)]
+
+                                    <div onClick={=>
+                                        @hl(lambda)
+                                    }>
+                                        <div>
+                                            {token "λ"} <code children={closure_name(eval_result)} />
+                                        </div>
+                                        <div>
+                                            {props_table({
+                                                data: captured_vars.map (varname) -> [varname, inspect(var_lookup(scope, varname))]
+                                            })}
+                                        </div>
+                                    </div>
+                                else
+                                    inspect(eval_result)
+                            }
                         </div>
                     </code>
                 </div>
@@ -625,11 +677,6 @@ exports.Lispy = class Lispy
             fn = call_record.args[0].value
             callees = callee_records(call_record)
 
-            lambda_name =
-                if fn[cl]?
-                then fn[cl].names?.values().next().value ? '<lambda>'
-                else fn.name
-
             leaf_size = {width: 80, height: 22}
             entry_spacing = {x: 3, y: 3}
 
@@ -637,7 +684,7 @@ exports.Lispy = class Lispy
                 padding_size = 3
                 height = leaf_size.height
                 <div
-                    children={lambda_name}
+                    children={closure_name(fn)}
                     style={{
                         boxModel: 'border-box'
                         top: y, left: x,
