@@ -37,10 +37,11 @@ Record :: {
 ###
 
 ## Scope
+window.no_such_var = no_such_var = Symbol('no such var')
 
-# var_lookup :: Scope -> Var -> Value
+# var_lookup :: Scope -> Var -> Value|no_such_var
 var_lookup = (scope, varname) ->
-    throw new Error("invalid var #{varname}") if scope == null
+    return no_such_var if scope == null
     return scope.vars[varname] if varname of scope.vars
     return var_lookup(scope.parent, varname)
 
@@ -115,7 +116,9 @@ lispy_eval = (scope, expr) ->
     record.value = switch expr_ty
         when 'var'
             [varname] = params
-            var_lookup(scope, varname)
+            lookup_result = var_lookup(scope, varname)
+            throw new Error("invalid var #{varname}") if lookup_result == no_such_var
+            lookup_result
 
         when 'lambda'
             [args, body] = params
