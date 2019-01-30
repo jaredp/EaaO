@@ -216,6 +216,9 @@ LispyCode_to_JsFn = (consts, code) ->
 
 # Analysis
 
+preorder = (root, getChildren) -> [root].concat _l.flatMap getChildren(root), (child) -> preorder(child, getChildren)
+postorder = (root, getChildren) -> _l.flatMap(getChildren(root), (child) -> preorder(child, getChildren)).concat([root])
+
 # callee_records :: Record -> [Record]
 window.callee_records = callee_records = (record) ->
     throw new Error('expected call record') unless record.args?
@@ -477,6 +480,9 @@ fake_multi_expr_as_one_for_ui = do ->
 
 window.root_record = root_record = lispy_eval(fresh_root_scope(), fake_multi_expr_as_one_for_ui)
 window.all_records = all_records = recursive_records_in_eval_order(root_record)
+window.lispy_globals = lispy_globals = root_record.body.scope.vars
+window.call_records = call_records = preorder root_record, callee_records
+
 
 ##
 
