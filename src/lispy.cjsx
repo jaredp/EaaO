@@ -7,10 +7,6 @@ ordered_map = _l.map
 
 window.cl = cl = Symbol('cl')
 ###
-OldNative  :: ['nat', (Value...) -> Value, String?] # the string at the end is an optional human-readable label
-OldClosure :: ['cl', Scope, Lambda, names: Set(String)?]
-
-
 Var :: String
 Scope :: {parent: Scope|null, vars: {Var: Value}}
 Expr :: (Lambda = ['lambda', [Var], Expr])
@@ -805,9 +801,9 @@ class Classic
             prevent_default = true
             switch evt.code
                 when 'ArrowDown'  then @next()
-                when 'ArrowLeft'  then @enter()
-                when 'ArrowRight' then @leave()
                 when 'ArrowUp'    then @prev()
+                when 'ArrowRight' then @enter()
+                when 'ArrowLeft'  then @leave()
                 else
                     prevent_default = false
                     # console.log 'keydown', evt.code, evt
@@ -827,6 +823,10 @@ class Classic
                 r.expr[0] in ['call', 'set']
             ]
 
+    get_current_record: ->
+        top_of_stack = _l.last(@stack)
+        return top_of_stack.impl[top_of_stack.cursor]
+
     next: ->
         return if _l.last(@stack).cursor == _l.last(@stack).impl.length - 1
         _l.last(@stack).cursor += 1
@@ -838,27 +838,38 @@ class Classic
         @update_hl()
 
     enter: ->
+        current_record = @get_current_record()
+        return unless current_record.expr?[0] == 'call' and current_record.body?
+
+        @stack.push({
+            record: current_record,
+            impl: @interesting_records_in_call(current_record),
+            cursor: 0
+        })
+
         @update_hl()
 
 
     leave: ->
+        return unless @stack.length > 1
+        @stack.pop()
         @update_hl()
 
 
     render: ->
-        top_of_stack = _l.last(@stack)
-        current_record = top_of_stack.impl[top_of_stack.cursor]
-        highlight_range = current_record.expr.source_range
-
+        current_record = @get_current_record()
+        highlight_range = current_record.expr?.source_range
 
         sidebar =
             <React.Fragment>
-                Debugging Controls
                 <div>
                     <button onClick={=> @next()} children="next" />
                     <button onClick={=> @prev()} children="prev" />
+                    <button onClick={=> @enter()} children="into" />
+                    <button onClick={=> @leave()} children="exit" />
                 </div>
                 <hr />
+
                 <code style={_l.extend({}, pane_style, flex: 1)}>
                     <div style={display: 'flex'}>
                         <span style={mini_label_style}>{"→ "}</span>
@@ -881,7 +892,9 @@ class Classic
                         </React.Fragment>
                     }
                 </code>
-                <div style={width: pane_margin} />
+
+                <div style={height: pane_margin} />
+
                 Stack Trace
                 {@stack.map (cr, i) =>
                     <React.Fragment key={i}>
