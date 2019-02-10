@@ -1,5 +1,5 @@
 {
-  "name": "coffee-react-base",
+  "name": "jrpdebug",
   "version": "0.1.0",
   "private": true,
   "dependencies": {
@@ -55,6 +55,7 @@
   "scripts": {
     "start": "node scripts/start.js",
     "build": "node scripts/build.js",
+    "now-build": "yarn build",
     "test": "node scripts/test.js --env=jsdom"
   },
   "jest": {

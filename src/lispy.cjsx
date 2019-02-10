@@ -857,8 +857,10 @@ class Classic
 
             <div style={width: 300, padding: pane_margin}>
                 Debugging Controls
-                <button onClick={=> @next()} children="next" />
-                <button onClick={=> @prev()} children="prev" />
+                <div>
+                    <button onClick={=> @next()} children="next" />
+                    <button onClick={=> @prev()} children="prev" />
+                </div>
                 <hr />
                 Stack Trace
             </div>
