@@ -839,13 +839,23 @@ class Classic
 
     enter: ->
         current_record = @get_current_record()
-        return unless current_record.expr?[0] == 'call' and current_record.body?
 
-        @stack.push({
-            record: current_record,
-            impl: @interesting_records_in_call(current_record),
-            cursor: 0
-        })
+        if current_record.args? and current_record.body?
+            @stack.push({
+                record: current_record,
+                impl: @interesting_records_in_call(current_record),
+                cursor: 0
+            })
+
+        else if current_record.expr?[0] == 'call' and current_record.callees? and current_record.callees.length > 0
+            @stack.push({
+                record: current_record,
+                impl: current_record.callees
+                cursor: 0
+            })
+
+        else
+            return
 
         @update_hl()
 
@@ -870,8 +880,8 @@ class Classic
 
         vlist = (list, spacing, render_elem) ->
             <React.Fragment>
-                { intersperse (-> <div style={height: spacing} />), list.map (elem, i) ->
-                    <React.Fragment key={i}>
+                { intersperse ((i) -> <div style={height: spacing} key={i * 2} />), list.map (elem, i) ->
+                    <React.Fragment key={i * 2 + 1}>
                         { render_elem(elem) }
                     </React.Fragment>
                 }
@@ -894,7 +904,7 @@ class Classic
                             { inspect_value(current_record.value) }
                         </div>
                     </div>
-                    { if current_record.expr[0] == 'call'
+                    { if current_record?.expr?[0] == 'call'
                         callee = current_record.args[0].value
                         arg_values = _l.map current_record.args.slice(1), 'value'
                         arg_names =
@@ -923,7 +933,14 @@ class Classic
 
                 <div style={height: pane_margin} />
 
-                {vlist @stack.slice(1), pane_margin, ({record}) =>
+                {vlist _l.reverse(@stack.slice(1)), pane_margin, ({record}) =>
+                    fn = record.args[0].value
+
+                    labeled_scope =
+                        if record.body?
+                        then _l.toPairs record.body.scope.vars
+                        else record.args.slice(1).map ({value}, i) -> [i, value]
+
                     <code style={_l.extend({}, pane_style, flex: 1)}>
                         <div style={display: 'flex'}>
                             <span style={mini_label_style}>{"→ "}</span>
@@ -931,21 +948,12 @@ class Classic
                                 { inspect_value(record.value) }
                             </div>
                         </div>
-                        { if record.expr[0] == 'call'
-                            callee = record.args[0].value
 
-                            labeled_locals =
-                                if record.body?
-                                then _l.toPairs record.body.scope.vars
-                                else record.args.slice(1).map ({value}, i) -> [i, value]
+                        { inspect_value fn }
 
-                            <React.Fragment>
-                                { inspect_value callee }
-                                {props_table({
-                                    data: labeled_locals.map ([label, v]) -> [label, inspect_value(v)]
-                                })}
-                            </React.Fragment>
-                        }
+                        {props_table({
+                            data: labeled_scope.map ([label, v]) -> [label, inspect_value(v)]
+                        })}
                     </code>
                 }
             </React.Fragment>
