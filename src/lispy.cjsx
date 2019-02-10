@@ -776,15 +776,52 @@ class Classic
         @records = all_records.filter (r) -> r.expr?.source_range? and r.expr?[0] not in ['var', 'lambda', 'lit']
         @time_cursor = 0
 
+        document.addEventListener 'keydown', (evt) =>
+            prevent_default = true
+            switch evt.code
+                when 'ArrowDown'  then @next()
+                # when 'ArrowLeft'  then @next()
+                # when 'ArrowRight' then @next()
+                when 'ArrowUp'    then @prev()
+                else
+                    prevent_default = false
+                    # console.log 'keydown', evt.code, evt
+
+            evt.preventDefault() if prevent_default
+
     did_mount: ->
 
     update_hl: ->
         @react_root.forceUpdate =>
             @react_root.refs.highlighted_chunk?.scrollIntoView({behavior: "smooth"})
 
+    next: ->
+        return if @time_cursor == @records.length - 2
+        @time_cursor += 1
+        @update_hl()
+
+    prev: ->
+        return if @time_cursor == 1
+        @time_cursor -= 1
+        @update_hl()
+
+
     render: ->
         current_record = @records[@time_cursor]
         highlight_range = current_record.expr.source_range
+
+
+        sidebar =
+            <React.Fragment>
+                Debugging Controls
+                <div>
+                    <button onClick={=> @next()} children="next" />
+                    <button onClick={=> @prev()} children="prev" />
+                </div>
+                <hr />
+                Stack Trace
+            </React.Fragment>
+
 
         chunk_delimiters = _l.map(demo_parsed_lispy, 'source_range.1').slice(0, -1)
         chunk_ranges = _l.zip([0].concat(chunk_delimiters), chunk_delimiters.concat([lispy_code.length]))
@@ -856,24 +893,9 @@ class Classic
             <div style={width: 1, backgroundColor: 'rgb(240, 240, 240)'} />
 
             <div style={width: 300, padding: pane_margin}>
-                Debugging Controls
-                <div>
-                    <button onClick={=> @next()} children="next" />
-                    <button onClick={=> @prev()} children="prev" />
-                </div>
-                <hr />
-                Stack Trace
+                { sidebar }
             </div>
         </div>
-
-    next: ->
-        @time_cursor += 1
-        @update_hl()
-
-    prev: ->
-        @time_cursor -= 1
-        @update_hl()
-
 
 ##
 
