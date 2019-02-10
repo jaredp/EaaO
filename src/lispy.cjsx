@@ -860,6 +860,23 @@ class Classic
         current_record = @get_current_record()
         highlight_range = current_record.expr?.source_range
 
+        # intersperse :: A -> [A] -> [A]
+        intersperse = (between, arr) ->
+            res = []
+            for elem, i in arr
+                res.push(between(i)) if i != 0
+                res.push(elem)
+            return res
+
+        vlist = (list, spacing, render_elem) ->
+            <React.Fragment>
+                { intersperse (-> <div style={height: spacing} />), list.map (elem, i) ->
+                    <React.Fragment key={i}>
+                        { render_elem(elem) }
+                    </React.Fragment>
+                }
+            </React.Fragment>
+
         sidebar =
             <React.Fragment>
                 <div>
@@ -895,13 +912,41 @@ class Classic
 
                 <div style={height: pane_margin} />
 
-                Stack Trace
-                {@stack.map (cr, i) =>
-                    <React.Fragment key={i}>
-                        <code style={_l.extend({}, pane_style, flex: 1)}>
-                            { inspect_value(cr.record) }
-                        </code>
-                    </React.Fragment>
+                <div children="STACK" style={
+                    backgroundColor: 'rgb(216, 213, 213)'
+                    margin: "0 -#{pane_margin}px"
+                    fontSize: 12
+                    color: '#7d7d7d'
+                    fontWeight: 'bold'
+                    padding: "4px #{pane_margin}px 2px #{pane_margin}px"
+                } />
+
+                <div style={height: pane_margin} />
+
+                {vlist @stack.slice(1), pane_margin, ({record}) =>
+                    <code style={_l.extend({}, pane_style, flex: 1)}>
+                        <div style={display: 'flex'}>
+                            <span style={mini_label_style}>{"→ "}</span>
+                            <div>
+                                { inspect_value(record.value) }
+                            </div>
+                        </div>
+                        { if record.expr[0] == 'call'
+                            callee = record.args[0].value
+
+                            labeled_locals =
+                                if record.body?
+                                then _l.toPairs record.body.scope.vars
+                                else record.args.slice(1).map ({value}, i) -> [i, value]
+
+                            <React.Fragment>
+                                { inspect_value callee }
+                                {props_table({
+                                    data: labeled_locals.map ([label, v]) -> [label, inspect_value(v)]
+                                })}
+                            </React.Fragment>
+                        }
+                    </code>
                 }
             </React.Fragment>
 
