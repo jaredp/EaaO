@@ -219,7 +219,7 @@ LispyCode_to_JsFn = (consts, code) ->
 preorder = (root, getChildren) -> [root].concat _l.flatMap getChildren(root), (child) -> preorder(child, getChildren)
 postorder = (root, getChildren) -> _l.flatMap(getChildren(root), (child) -> preorder(child, getChildren)).concat([root])
 
-# callee_records :: Record -> [Record]
+# callee_records :: CallRecord -> [Record]
 window.callee_records = callee_records = (record) ->
     throw new Error('expected call record') unless record.args?
     if record.args[0].value[cl]?
@@ -232,6 +232,22 @@ window.immediate_call_records = immediate_call_records = (record) ->
         immediate_call_records(record.body)             if record.expr?[0] == 'set'
         ([record])                                      if record.expr?[0] == 'call'
     ]
+
+# records_in_scope :: CallRecord -> [Record]
+# Gets the records for all subexprs executed in scope.  Does **not** go into the bodies
+# of recursive calls.
+records_in_scope = (call_record) ->
+    records = []
+    recurse = (record) ->
+        switch record.expr[0]
+            when 'var'      then # no-op
+            when 'lambda'   then # no-op
+            when 'lit'      then # no-op
+            when 'call'     then (recurse(arg) for arg in record.args)
+            when 'set'      then (recurse(record.body))
+        records.push(record)
+    recurse(call_record.body)
+    return records
 
 
 
@@ -497,6 +513,60 @@ pane_style = {
     overflow: 'auto'
 }
 
+mini_label_style = {
+    color: '#000000a1'
+    fontSize: '0.8em'
+}
+
+# props_table :: [(label, value)] -> React.Element
+props_table = ({data, onClick}) ->
+    <table onClick={onClick}>
+        <tbody>
+            {
+                data.map ([label, value], i) ->
+                    <tr key={i}>
+                        <td style={_l.extend {}, mini_label_style, {
+                            textAlign: 'right'
+                            width: 60
+                            verticalAlign: 'middle'
+                        }}><code children={label} /></td>
+                        <td>{value}</td>
+                    </tr>
+            }
+        </tbody>
+    </table>
+
+inspect_value = (value) ->
+    token = (children) ->
+        <span children={children} style={
+            backgroundColor: 'rgb(116, 203, 135)';
+            color: '#ffffffb0';
+            margin: '-2px 0'
+            padding: '2px 5px'
+            borderRadius: 3
+        } />
+
+    if value?[cl]?
+        [scope, lambda] = value[cl]
+        var_exprs = all_subexprs(lambda).filter(([ty]) -> ty == 'var')
+        refed_vars = _l.uniq _l.map(var_exprs, '1')
+        captured_vars = refed_vars.filter (varname) ->
+            var_lookup(scope, varname) not in [no_such_var, var_lookup(root_record.body.scope, varname)]
+
+        <React.Fragment>
+            <div>
+                {token "λ"} <code children={closure_name(value)} />
+            </div>
+            <div>
+                {props_table({
+                    data: captured_vars.map (varname) -> [varname, inspect(var_lookup(scope, varname))]
+                })}
+            </div>
+        </React.Fragment>
+
+    else
+        inspect(value)
+
 
 exports.Lispy = class Lispy
     init: (@react_root) ->
@@ -608,61 +678,12 @@ exports.Lispy = class Lispy
 
                     <div style={width: pane_margin} />
 
-                    <code style={_l.extend({}, pane_style, flex: 1)}>
-                        <div key={i}>
-                            {
-                                if eval_result?[cl]?
-                                    token = (children) ->
-                                        <span children={children} style={
-                                            backgroundColor: 'rgb(116, 203, 135)';
-                                            color: '#ffffffb0';
-                                            margin: '-2px 0'
-                                            padding: '2px 5px'
-                                            borderRadius: 3
-                                        } />
-
-                                    # props_table :: [(label, value)] -> React.Element
-                                    props_table = ({data, onClick}) ->
-                                        <table onClick={onClick}>
-                                            <tbody>
-                                                {
-                                                    data.map ([label, value], i) ->
-                                                        <tr key={i}>
-                                                            <td style={
-                                                                textAlign: 'right'
-                                                                width: 60
-                                                                color: '#000000a1'
-                                                                fontSize: '0.8em'
-                                                                verticalAlign: 'middle'
-                                                            }><code children={label} /></td>
-                                                            <td>{value}</td>
-                                                        </tr>
-                                                }
-                                            </tbody>
-                                        </table>
-
-                                    [scope, lambda] = eval_result[cl]
-                                    var_exprs = all_subexprs(lambda).filter(([ty]) -> ty == 'var')
-                                    refed_vars = _l.uniq _l.map(var_exprs, '1')
-                                    captured_vars = refed_vars.filter (varname) ->
-                                        var_lookup(scope, varname) not in [no_such_var, var_lookup(root_record.body.scope, varname)]
-
-                                    <div onClick={=>
-                                        @hl(lambda)
-                                    }>
-                                        <div>
-                                            {token "λ"} <code children={closure_name(eval_result)} />
-                                        </div>
-                                        <div>
-                                            {props_table({
-                                                data: captured_vars.map (varname) -> [varname, inspect(var_lookup(scope, varname))]
-                                            })}
-                                        </div>
-                                    </div>
-                                else
-                                    inspect(eval_result)
-                            }
-                        </div>
+                    <code style={_l.extend({}, pane_style, flex: 1)} onClick={=>
+                        if eval_result?[cl]?
+                            [scope, lambda] = eval_result[cl]
+                            @hl(lambda)
+                    }>
+                        { inspect_value(eval_result) }
                     </code>
                 </div>
             }
@@ -773,6 +794,10 @@ caret_in_dom_text_for_evt = ({evt, is_root_container}) ->
 
 class Classic
     init: (@react_root) ->
+        @stack = [
+            {record: root_record, impl: @interesting_records_in_call(root_record), cursor: 0}
+        ]
+
         @records = all_records.filter (r) -> r.expr?.source_range? and r.expr?[0] not in ['var', 'lambda', 'lit']
         @time_cursor = 0
 
@@ -780,8 +805,8 @@ class Classic
             prevent_default = true
             switch evt.code
                 when 'ArrowDown'  then @next()
-                # when 'ArrowLeft'  then @next()
-                # when 'ArrowRight' then @next()
+                when 'ArrowLeft'  then @enter()
+                when 'ArrowRight' then @leave()
                 when 'ArrowUp'    then @prev()
                 else
                     prevent_default = false
@@ -795,19 +820,34 @@ class Classic
         @react_root.forceUpdate =>
             @react_root.refs.highlighted_chunk?.scrollIntoView({behavior: "smooth"})
 
+    interesting_records_in_call: (call_record) ->
+        records_in_scope(call_record).filter (r) ->
+            _l.every [
+                r.expr.source_range?
+                r.expr[0] in ['call', 'set']
+            ]
+
     next: ->
-        return if @time_cursor == @records.length - 2
-        @time_cursor += 1
+        return if _l.last(@stack).cursor == _l.last(@stack).impl.length - 1
+        _l.last(@stack).cursor += 1
         @update_hl()
 
     prev: ->
-        return if @time_cursor == 1
-        @time_cursor -= 1
+        return if _l.last(@stack).cursor == 0
+        _l.last(@stack).cursor -= 1
+        @update_hl()
+
+    enter: ->
+        @update_hl()
+
+
+    leave: ->
         @update_hl()
 
 
     render: ->
-        current_record = @records[@time_cursor]
+        top_of_stack = _l.last(@stack)
+        current_record = top_of_stack.impl[top_of_stack.cursor]
         highlight_range = current_record.expr.source_range
 
 
@@ -819,7 +859,30 @@ class Classic
                     <button onClick={=> @prev()} children="prev" />
                 </div>
                 <hr />
+                <code style={_l.extend({}, pane_style, flex: 1)}>
+                    { if current_record.expr[0] == 'call'
+                        labeled_arg_values = []
+                        <React.Fragment>
+                            { inspect_value current_record.args[0].value }
+                            {props_table({data: labeled_arg_values})}
+                        </React.Fragment>
+                    }
+                    <div style={display: 'flex'}>
+                        <span style={mini_label_style}>{"→ "}</span>
+                        <div>
+                            { inspect_value(current_record.value) }
+                        </div>
+                    </div>
+                </code>
+                <div style={width: pane_margin} />
                 Stack Trace
+                {@stack.map (cr, i) =>
+                    <React.Fragment key={i}>
+                        <code style={_l.extend({}, pane_style, flex: 1)}>
+                            { inspect_value(cr.record) }
+                        </code>
+                    </React.Fragment>
+                }
             </React.Fragment>
 
 
@@ -892,7 +955,7 @@ class Classic
 
             <div style={width: 1, backgroundColor: 'rgb(240, 240, 240)'} />
 
-            <div style={width: 300, padding: pane_margin}>
+            <div style={width: 300, padding: pane_margin, overflow: 'auto'}>
                 { sidebar }
             </div>
         </div>
