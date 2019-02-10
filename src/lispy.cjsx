@@ -518,7 +518,7 @@ mini_label_style = {
     fontSize: '0.8em'
 }
 
-# props_table :: [(label, value)] -> React.Element
+# props_table :: [(label, React.Element)] -> React.Element
 props_table = ({data, onClick}) ->
     <table onClick={onClick}>
         <tbody>
@@ -860,19 +860,26 @@ class Classic
                 </div>
                 <hr />
                 <code style={_l.extend({}, pane_style, flex: 1)}>
-                    { if current_record.expr[0] == 'call'
-                        labeled_arg_values = []
-                        <React.Fragment>
-                            { inspect_value current_record.args[0].value }
-                            {props_table({data: labeled_arg_values})}
-                        </React.Fragment>
-                    }
                     <div style={display: 'flex'}>
                         <span style={mini_label_style}>{"→ "}</span>
                         <div>
                             { inspect_value(current_record.value) }
                         </div>
                     </div>
+                    { if current_record.expr[0] == 'call'
+                        callee = current_record.args[0].value
+                        arg_values = _l.map current_record.args.slice(1), 'value'
+                        arg_names =
+                            if callee?[cl]?
+                            then callee[cl][1][1]
+                            else [0...arg_values.length]
+                        <React.Fragment>
+                            { inspect_value callee }
+                            {props_table({
+                                data: _l.zip(arg_names, arg_values.map((v) -> inspect_value(v)))
+                            })}
+                        </React.Fragment>
+                    }
                 </code>
                 <div style={width: pane_margin} />
                 Stack Trace
