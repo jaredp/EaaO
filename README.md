@@ -6,4 +6,4 @@ Play with it without downloading/installing at https://jrpdebug.now.sh/
 
 ---
 
-I am providing the code in the repository to you under an open source license.  Because this is my personal repository, the license you recieve to my code is from me and not my employer (Facebook)
+I am providing the code in the repository to you under an open source license.  Because this is my personal repository, the license you receive to my code is from me and not my employer (Facebook)
