@@ -6,6 +6,7 @@ ordered_map = _l.map
 
 
 window.cl = cl = Symbol('cl')
+window.builtin_name_key = builtin_name_key = Symbol('builtin name')
 ###
 Var :: String
 Scope :: {parent: Scope|null, vars: {Var: Value}}
@@ -156,7 +157,7 @@ lispy_eval = (scope, expr) ->
 # fresh_root_scope :: -> Scope
 window.fresh_root_scope = fresh_root_scope = ->
     # builtin_native_fns :: {Var: (Value...) -> Value}
-    builtins = {
+    builtin_fns = {
         '+':  (a, b) -> a + b
         '-':  (a, b) -> a - b
         '*':  (a, b) -> a * b
@@ -192,12 +193,15 @@ window.fresh_root_scope = fresh_root_scope = ->
 
         record: (closure) ->
             return lispy_record_call(closure, []).body
+    }
+    fn[builtin_name_key] = name for name, fn of builtin_fns
 
+    builtin_vals = {
         null: null
         console
     }
 
-    return {vars: builtins, parent: null}
+    return {vars: {builtin_fns..., builtin_vals...}, parent: null}
 
 LispyCode_to_JsFn = (consts, code) ->
     throw new Error("consts should be an object") unless _l.isPlainObject(consts)
@@ -283,7 +287,7 @@ window.recursive_records_in_eval_order = recursive_records_in_eval_order = (reco
 closure_name = (fn) ->
     if fn[cl]?
     then fn[cl].names?.values().next().value ? '<lambda>'
-    else fn.name
+    else fn[builtin_name_key] ? '<nat>'
 
 ## Syntax
 
@@ -558,6 +562,11 @@ inspect_value = (value) ->
                     data: captured_vars.map (varname) -> [varname, inspect(var_lookup(scope, varname))]
                 })}
             </div>
+        </React.Fragment>
+
+    else if (name = value?[builtin_name_key])?
+        <React.Fragment>
+            [builtin <code style={color: '#8e3b8e'}>{name}</code>]
         </React.Fragment>
 
     else
