@@ -564,7 +564,7 @@ inspect_value = (value) ->
         inspect(value)
 
 
-exports.Lispy = class Lispy
+class Lispy
     init: (@react_root) ->
         @highlight_range = null # {start: {line: int, col: int}, end: {line: int, col: int}}
 
@@ -638,13 +638,17 @@ exports.Lispy = class Lispy
                         style={_l.extend({}, pane_style, flex: 1)}
                         onClick={(e) =>
                             cursor_in_chunk = caret_in_dom_text_for_evt({evt: e, is_root_container: (dom) -> dom.tagName == 'CODE'})
-                            (@unhighlight(); return) unless cursor_in_chunk?
+                            unless cursor_in_chunk?
+                                @unhighlight()
+                                return
 
                             cursor = chunk_start + cursor_in_chunk
                             tokens = tokenize_source_str(lispy_code)
                             clicked_token = _l.find tokens, ({source_range: [start, end]}) -> start <= cursor <= end
 
-                            (@unhighlight(); return) unless clicked_token?
+                            unless clicked_token?
+                                @unhighlight()
+                                return
                             @hl(clicked_token)
                         }
                     >
@@ -1035,7 +1039,7 @@ class Classic
 
 ##
 
-exports.App = createReactClass
+export App = createReactClass
     componentWillMount: ->
         @app_state = switch window.location.hash
             when '#classic' then new Classic()
