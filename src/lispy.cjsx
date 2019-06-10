@@ -1083,7 +1083,7 @@ class JSTOLisp
     init: (@react_root) ->
     did_mount: ->
     render: ->
-        sample_js = """
+        @sample_js = """
         /**
          * Paste or drop some JavaScript here and explore
          * the syntax tree created by chosen parser.
@@ -1101,22 +1101,23 @@ class JSTOLisp
         ];
 
         function printTips() {
-          return tips.map((tip, i) => "Tip " + i + ":" + tip);
+          return tips.map((tip, i) => "Tip " + i + ": " + tip);
         }
 
         printTips()
         """
 
-        js_ast = babylon.parse(sample_js)
-        lispy_ast = js_to_lispy(js_ast)
-        evaled = lispy_eval(fresh_root_scope(), lispy_ast).value
+        @js_ast = babylon.parse(@sample_js)
+        @lispy_ast = js_to_lispy(@js_ast)
+        @rr = lispy_eval(fresh_root_scope(), @lispy_ast)
+        @evaled = @rr.value
 
         pp = (o) -> JSON.stringify(o, null, '   ')
         panes = [
-            <div>{sample_js}</div>
-            <div>{pp js_ast}</div>
-            <div>{pp lispy_ast}</div>
-            <div>{pp evaled}</div>
+            <div>{@sample_js}</div>
+            <div>{pp @js_ast}</div>
+            <div>{pp @lispy_ast}</div>
+            <div>{pp @evaled}</div>
         ]
 
         <div style={{
