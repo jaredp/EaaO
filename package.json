@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "babylon": "^6.18.0",
     "coffee-react-scripts": "1.0.0",
     "create-react-class": "^15.6.3",
     "react": "^16.8.3",

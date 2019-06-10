@@ -158,6 +158,31 @@ lispy_eval = (scope, expr) ->
 window.fresh_root_scope = fresh_root_scope = ->
     # builtin_native_fns :: {Var: (Value...) -> Value}
     builtin_fns = {
+        "js/==": (a, b) -> `a == b`
+        "js/!=": (a, b) -> `a != b`
+        "js/===": (a, b) -> `a === b`
+        "js/!==": (a, b) -> `a !== b`
+        "js/<": (a, b) -> `a < b`
+        "js/>": (a, b) -> `a > b`
+        "js/<=": (a, b) -> `a <= b`
+        "js/>=": (a, b) -> `a >= b`
+        "js/<<": (a, b) -> `a << b`
+        "js/>>": (a, b) -> `a >> b`
+        "js/>>>": (a, b) -> `a >>> b`
+
+        "js/+": (a, b) -> `a + b`
+        "js/-": (a, b) -> `a - b`
+        "js/*": (a, b) -> `a * b`
+        "js//": (a, b) -> `a / b`
+        "js/%": (a, b) -> `a % b`
+        "js/|": (a, b) -> `a | b`
+        "js/^": (a, b) -> `a ^ b`
+        "js/\&": (a, b) -> `a & b`
+
+        "js/in": (a, b) -> `a in b`
+        "js/instanceof": (a, b) -> `a instanceof b`
+        "js/.()": (obj, m, args) -> obj[m].apply(obj, args)
+
         '+':  (a, b) -> a + b
         '-':  (a, b) -> a - b
         '*':  (a, b) -> a * b
@@ -501,6 +526,17 @@ window.call_records = call_records = preorder root_record, callee_records
 
 
 ##
+
+# intersperse :: A -> [A] -> [A]
+intersperse = (between, arr) ->
+    res = []
+    for elem, i in arr
+        res.push(between(i)) if i != 0
+        res.push(elem)
+    return res
+
+key_by_i = (lst) ->
+    lst.map (o, i) -> <React.Fragment key={i}>{o}</React.Fragment>
 
 [pane_margin, pane_padding] = [20, 10]
 pane_style = {
@@ -883,14 +919,6 @@ class Classic
         current_record = @get_current_record()
         highlight_range = current_record.expr?.source_range
 
-        # intersperse :: A -> [A] -> [A]
-        intersperse = (between, arr) ->
-            res = []
-            for elem, i in arr
-                res.push(between(i)) if i != 0
-                res.push(elem)
-            return res
-
         vlist = (list, spacing, render_elem) ->
             <React.Fragment>
                 { intersperse ((i) -> <div style={height: spacing} key={i * 2} />), list.map (elem, i) ->
@@ -1048,10 +1076,71 @@ class Classic
 
 ##
 
+{js_to_lispy} = require './js_to_lisp'
+babylon = require 'babylon'
+
+class JSTOLisp
+    init: (@react_root) ->
+    did_mount: ->
+    render: ->
+        sample_js = """
+        /**
+         * Paste or drop some JavaScript here and explore
+         * the syntax tree created by chosen parser.
+         * You can use all the cool new features from ES6
+         * and even more. Enjoy!
+         */
+
+        let tips = [
+          "Click on any AST node with a '+' to expand it",
+
+          "Hovering over a node highlights the \
+           corresponding part in the source code",
+
+          "Shift click on an AST node expands the whole substree"
+        ];
+
+        function printTips() {
+          return tips.map((tip, i) => "Tip " + i + ":" + tip);
+        }
+
+        printTips()
+        """
+
+        js_ast = babylon.parse(sample_js)
+        lispy_ast = js_to_lispy(js_ast)
+        evaled = lispy_eval(fresh_root_scope(), lispy_ast).value
+
+        pp = (o) -> JSON.stringify(o, null, '   ')
+        panes = [
+            <div>{sample_js}</div>
+            <div>{pp js_ast}</div>
+            <div>{pp lispy_ast}</div>
+            <div>{pp evaled}</div>
+        ]
+
+        <div style={{
+            margin: pane_margin
+            display: 'flex'
+            flexDirection: 'row'
+            flex: '1 1'
+            height: "calc(100vh - #{3 * pane_margin}px)"
+        }}>
+            {
+                key_by_i intersperse (-> <div style={width: pane_margin} />), panes.map (content) ->
+                    <code style={_l.extend {flex: 1, overflow: 'auto', height: '100%'}, pane_style}>
+                        { content }
+                    </code>
+            }
+        </div>
+
+##
+
 export App = createReactClass
     componentWillMount: ->
         @app_state = switch window.location.hash
             when '#classic' then new Classic()
+            when '#js' then new JSTOLisp()
             else new Lispy()
         window.ui = @app_state
         @app_state.init(this)
