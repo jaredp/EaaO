@@ -26,7 +26,7 @@ Value :: Number | String     # aka LitValue.
                              # Note these are not currently boxed.
 Record :: {
     value: Value
-    expr: Expr?, scope?: Scope      # unless an arg from a call into lispy from native
+    expr: Expr?, scope?: Scope      # unless a callee from native, or an arg of a callee from native
     args: [Record]?                 # when .expr[0] == 'call' or not .expr?
     body: Record?                   # when .args? and .args[0].value[0] == 'cl' or .expr[0] == 'set'
     callees: [Record]?              # when .args? and .args[0].value[0] == 'nat'
@@ -309,6 +309,16 @@ window.recursive_records_in_eval_order = recursive_records_in_eval_order = (reco
     ]
 
 
+# subrecords_for_record :: Record -> [Record]
+# subrecords_for_record ignores the {value} stub records used for args to native callees
+window.subrecords_for_record = subrecords_for_record = (record) ->
+    is_called_from_native = not record.expr? # calls from native don't have exprs
+    _l.compact _l.flatten [
+        record.args unless is_called_from_native # calls from native don't have real arg records
+        [record.body]
+        record.callees
+    ]
+
 closure_name = (fn) ->
     if fn[cl]?
     then fn[cl].names?.values().next().value ? '<lambda>'
@@ -545,6 +555,9 @@ vlist = (list, spacing, render_elem) ->
 hlist = (list, spacing, render_elem) ->
     key_by_i intersperse (-> <div style={width: spacing} />), list.map(render_elem)
 
+pp = (o) -> JSON.stringify(o, null, '   ')
+
+
 [pane_margin, pane_padding] = [20, 10]
 pane_style = {
     padding: pane_padding
@@ -614,6 +627,33 @@ inspect_value = (value) ->
 
     else
         inspect(value)
+
+label_for_record = (record) ->
+    color = (choice) -> (children) -> <span style={color: choice} children={children} />
+
+    if record.expr? == false
+        # should always have an expr because getChildren should filter out
+        # is_called_from_native the only case where we woudn't have an expr.
+        # for safety, let's do this anyway:
+        return '<unk>' if record.args? == false
+
+        return closure_name(record.args[0].value)
+
+    str = switch record.expr[0]
+        when 'lambda' then color('#7f4313') 'λ'
+        when 'call' then color('#8e3b8e') closure_name(record.args[0].value)
+        when 'var' then color('rgb(18, 154, 47)') "#{record.expr[1]}"
+        when 'lit' then color('#7f4313') pp record.expr[1]
+        when 'set' then color('rgb(160, 0, 0)') "#{record.expr[1]} ="
+
+    <div children={str} style={
+        overflow: 'hidden'
+        width: '100%'
+        textOverflow: 'ellipsis'
+        whiteSpace: 'nowrap'
+    } />
+
+
 
 Timeline = ({roots, onRecordClick, label, getChildren, style}) ->
     leaf_size = {width: 80, height: 22}
@@ -1081,37 +1121,77 @@ class JSTOLisp
         @rr = lispy_eval(fresh_root_scope(), @lispy_ast)
         @evaled = @rr.value
 
-        pp = (o) -> JSON.stringify(o, null, '   ')
-        panes_content = [
-            <div>{sample_js}</div>
-            <div>{pp @js_ast}</div>
-            <div>{pp @lispy_ast}</div>
-            <div>{pp @evaled}</div>
+        panes = [
+            sample_js
+            pp @js_ast
+            pp @lispy_ast
+            pp @evaled
         ]
 
-        panes = <div style={{
-            margin: pane_margin
-            display: 'flex'
-            flexDirection: 'row'
-            flex: '1 1'
+        <div style={
+            flex: '1 1', margin: pane_margin
+            display: 'flex', flexDirection: 'row'
             height: "calc(100vh - #{3 * pane_margin}px)"
-        }}>
+        }>
             {
-                hlist panes_content, pane_margin, (content) ->
-                    <code style={_l.extend {flex: 1, overflow: 'auto', height: '100%'}, pane_style}>
+                hlist panes, pane_margin, (content) ->
+                    <code style={_l.extend {flex: 1, overflow: 'auto'}, pane_style}>
                         { content }
                     </code>
             }
         </div>
 
-        panes
+
+class JSTimeline
+    init: (@react_root) ->
+    did_mount: ->
+    render: ->
+        @js_ast = babylon.parse(sample_js)
+        @lispy_ast = js_to_lispy(@js_ast)
+        @rr = lispy_eval(fresh_root_scope(), @lispy_ast)
+        @evaled = @rr.value
+
+        panes = [
+            sample_js
+            pp @evaled
+        ]
+
+        timeline = (style) => Timeline({
+            style
+            roots: @rr.args.slice(1)
+            label: (record) -> label_for_record(record)
+            getChildren: (record) -> subrecords_for_record(record)
+            onRecordClick: (record) =>
+                window.r = record
+        })
+
+        timeline_height = 200
+        <div style={height: '100vh', display: 'flex', flexDirection: 'column'}>
+            <div style={overflow: 'scroll', height: timeline_height, borderBottom: '1px solid #bbbbbb'}>
+                { timeline({position: 'relative'}) }
+            </div>
+            <div style={
+                flex: '1 1', margin: pane_margin
+                display: 'flex', flexDirection: 'row'
+                height: "calc(100vh - #{3 * pane_margin + timeline_height}px)"
+            }>
+                {
+                    hlist panes, pane_margin, (content) ->
+                        <code style={_l.extend {flex: 1, overflow: 'auto'}, pane_style}>
+                            { content }
+                        </code>
+                }
+            </div>
+        </div>
+
 ##
 
 export App = createReactClass
     componentWillMount: ->
         @app_state = switch window.location.pathname
             when '/classic' then new Classic()
-            when '/js' then new JSTOLisp()
+            when '/js-to-lispy' then new JSTOLisp()
+            when '/js' then new JSTimeline()
             else new Lispy()
         window.ui = @app_state
         @app_state.init(this)
