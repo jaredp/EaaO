@@ -1139,9 +1139,9 @@ class JSTOLisp
 
 export App = createReactClass
     componentWillMount: ->
-        @app_state = switch window.location.hash
-            when '#classic' then new Classic()
-            when '#js' then new JSTOLisp()
+        @app_state = switch window.location.pathname
+            when '/classic' then new Classic()
+            when '/js' then new JSTOLisp()
             else new Lispy()
         window.ui = @app_state
         @app_state.init(this)
