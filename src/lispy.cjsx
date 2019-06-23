@@ -538,6 +538,8 @@ intersperse = (between, arr) ->
 key_by_i = (lst) ->
     lst.map (o, i) -> <React.Fragment key={i}>{o}</React.Fragment>
 
+rk = (key) => (children) => <React.Fragment key={key} children={children} />
+
 [pane_margin, pane_padding] = [20, 10]
 pane_style = {
     padding: pane_padding
@@ -608,6 +610,65 @@ inspect_value = (value) ->
     else
         inspect(value)
 
+Timeline = ({root_record, onRecordClick, style}) ->
+    layout_entry = (call_record) =>
+        fn = call_record.args[0].value
+        callees = callee_records(call_record)
+
+        leaf_size = {width: 80, height: 22}
+        entry_spacing = {x: 3, y: 3}
+
+        render_entry = ({x, y, width}) =>
+            padding_size = 3
+            height = leaf_size.height
+            <div
+                children={closure_name(fn)}
+                style={{
+                    boxModel: 'border-box'
+                    top: y, left: x,
+                    width: width - 8, height: height - 8,
+                    position: 'absolute',
+                    backgroundColor: '#EEE', border: '2px solid #AAA'
+                    padding: padding_size
+                    fontFamily: 'monospace'
+                    fontSize: 14
+                }}
+                onClick={-> onRecordClick(call_record)}
+            />
+
+        if _l.isEmpty callees
+            {width: leaf_size.width, height: leaf_size.height, render: ({x, y}) ->
+                render_entry({x, y, width: leaf_size.width})
+            }
+
+        else
+            children_layouts = callees.map(layout_entry)
+            width =  _l.sum(_l.map(children_layouts, 'width'))  + (children_layouts.length - 1) * entry_spacing.x
+            height = _l.max(_l.map(children_layouts, 'height')) + leaf_size.height + entry_spacing.y
+            { width, height, render: ({x, y}) ->
+                <React.Fragment>
+                    {children_layouts.map (child, i) =>
+                        rk(i) child.render({
+                            x: x + _l.sum(_l.map(children_layouts, 'width').slice(0, i))  + i * entry_spacing.x
+                            y: y + (leaf_size.height + entry_spacing.y)
+                        })
+                    }
+                    {render_entry({x, y, width})}
+                </React.Fragment>
+            }
+
+    tree_layout = layout_entry(root_record)
+
+    <div
+        style={_l.defaults {}, style, {
+            height: tree_layout.height + 20
+            width:  tree_layout.width + 20
+        }}
+        children={tree_layout.render({x: 10, y: 10})}
+    />
+
+
+##
 
 class Lispy
     init: (@react_root) ->
@@ -617,7 +678,6 @@ class Lispy
         window.addEventListener 'resize', => @react_root.forceUpdate()
 
     did_mount: ->
-        @timelineDidMount()
 
     cycle_highlight_through_exprs: ->
         tick_forever = (cycle_time_ms, fn) ->
@@ -734,75 +794,18 @@ class Lispy
             }
         </div>
 
-        rk = (key) => (children) => <React.Fragment key={key} children={children} />
+        timeline = Timeline({
+            root_record
+            style: {position: 'relative'}
+            onRecordClick: (record) =>
+                window.r = record
+                if record.expr?
+                    @hl(record.expr)
 
-        handle_click_on_record = (record) =>
-            window.r = record
-            if record.expr?
-                @hl(record.expr)
+                else if record.args?[0].value[cl]?
+                    @hl(record.args[0].value[cl][1])
+        })
 
-            else if record.args?[0].value[cl]?
-                @hl(record.args[0].value[cl][1])
-
-        layout_entry = (call_record) =>
-            fn = call_record.args[0].value
-            callees = callee_records(call_record)
-
-            leaf_size = {width: 80, height: 22}
-            entry_spacing = {x: 3, y: 3}
-
-            render_entry = ({x, y, width}) =>
-                padding_size = 3
-                height = leaf_size.height
-                <div
-                    children={closure_name(fn)}
-                    style={{
-                        boxModel: 'border-box'
-                        top: y, left: x,
-                        width: width - 8, height: height - 8,
-                        position: 'absolute',
-                        backgroundColor: '#EEE', border: '2px solid #AAA'
-                        padding: padding_size
-                        fontFamily: 'monospace'
-                        fontSize: 14
-                    }}
-                    onClick={-> handle_click_on_record(call_record)}
-                />
-
-            if _l.isEmpty callees
-                {width: leaf_size.width, height: leaf_size.height, render: ({x, y}) ->
-                    render_entry({x, y, width: leaf_size.width})
-                }
-
-            else
-                children_layouts = callees.map(layout_entry)
-                width =  _l.sum(_l.map(children_layouts, 'width'))  + (children_layouts.length - 1) * entry_spacing.x
-                height = _l.max(_l.map(children_layouts, 'height')) + leaf_size.height + entry_spacing.y
-                { width, height, render: ({x, y}) ->
-                    <React.Fragment>
-                        {children_layouts.map (child, i) =>
-                            rk(i) child.render({
-                                x: x + _l.sum(_l.map(children_layouts, 'width').slice(0, i))  + i * entry_spacing.x
-                                y: y + (leaf_size.height + entry_spacing.y)
-                            })
-                        }
-                        {render_entry({x, y, width})}
-                    </React.Fragment>
-                }
-
-        tree_layout = layout_entry(root_record)
-        timeline =
-            <div
-                style={
-                    height: tree_layout.height + 20
-                    width:  tree_layout.width + 20
-                    position: 'relative'
-                }
-                children={tree_layout.render({x: 10, y: 10})}
-            />
-
-
-        @timelineDidMount = =>
 
         <div style={height: '100vh', display: 'flex', flexDirection: 'column'}>
             <div style={overflow: 'scroll', height: 250, borderBottom: '1px solid #bbbbbb'}>
@@ -1079,42 +1082,42 @@ class Classic
 {js_to_lispy} = require './js_to_lisp'
 babylon = require 'babylon'
 
+sample_js = """
+    /**
+     * Paste or drop some JavaScript here and explore
+     * the syntax tree created by chosen parser.
+     * You can use all the cool new features from ES6
+     * and even more. Enjoy!
+     */
+
+    let tips = [
+      "Click on any AST node with a '+' to expand it",
+
+      "Hovering over a node highlights the \
+       corresponding part in the source code",
+
+      "Shift click on an AST node expands the whole substree"
+    ];
+
+    function printTips() {
+      return tips.map((tip, i) => "Tip " + i + ": " + tip);
+    }
+
+    printTips()
+"""
+
 class JSTOLisp
     init: (@react_root) ->
     did_mount: ->
     render: ->
-        @sample_js = """
-        /**
-         * Paste or drop some JavaScript here and explore
-         * the syntax tree created by chosen parser.
-         * You can use all the cool new features from ES6
-         * and even more. Enjoy!
-         */
-
-        let tips = [
-          "Click on any AST node with a '+' to expand it",
-
-          "Hovering over a node highlights the \
-           corresponding part in the source code",
-
-          "Shift click on an AST node expands the whole substree"
-        ];
-
-        function printTips() {
-          return tips.map((tip, i) => "Tip " + i + ": " + tip);
-        }
-
-        printTips()
-        """
-
-        @js_ast = babylon.parse(@sample_js)
+        @js_ast = babylon.parse(sample_js)
         @lispy_ast = js_to_lispy(@js_ast)
         @rr = lispy_eval(fresh_root_scope(), @lispy_ast)
         @evaled = @rr.value
 
         pp = (o) -> JSON.stringify(o, null, '   ')
         panes = [
-            <div>{@sample_js}</div>
+            <div>{sample_js}</div>
             <div>{pp @js_ast}</div>
             <div>{pp @lispy_ast}</div>
             <div>{pp @evaled}</div>
@@ -1137,11 +1140,47 @@ class JSTOLisp
 
 ##
 
+class JSClassic
+    init: (@react_root) ->
+    did_mount: ->
+    render: ->
+        @js_ast = babylon.parse(sample_js)
+        @lispy_ast = js_to_lispy(@js_ast)
+        @rr = lispy_eval(fresh_root_scope(), @lispy_ast)
+        @evaled = @rr.value
+
+        pp = (o) -> JSON.stringify(o, null, '   ')
+        panes = [
+            <div>{sample_js}</div>
+            <div>{pp @js_ast}</div>
+            <div>{pp @lispy_ast}</div>
+            <div>{pp @evaled}</div>
+        ]
+
+        <div style={{
+            margin: pane_margin
+            display: 'flex'
+            flexDirection: 'row'
+            flex: '1 1'
+            height: "calc(100vh - #{3 * pane_margin}px)"
+        }}>
+            {
+                key_by_i intersperse (-> <div style={width: pane_margin} />), panes.map (content) ->
+                    <code style={_l.extend {flex: 1, overflow: 'auto', height: '100%'}, pane_style}>
+                        { content }
+                    </code>
+            }
+        </div>
+
+
+##
+
 export App = createReactClass
     componentWillMount: ->
         @app_state = switch window.location.pathname
             when '/classic' then new Classic()
             when '/js' then new JSTOLisp()
+            when '/jsclassic' then new JSClassic()
             else new Lispy()
         window.ui = @app_state
         @app_state.init(this)
