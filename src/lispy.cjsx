@@ -1116,30 +1116,61 @@ class JSTOLisp
     init: (@react_root) ->
     did_mount: ->
     render: ->
+        # NOTE we use a style where your parent passes you your flex-child attributes
+        # through the curried `style` arg
+        pane = (content) -> (style) ->
+            <code style={_l.extend {overflow: 'auto'}, pane_style, style}>
+                { content }
+            </code>
+
+        even_hstack = (cols) -> (style) ->
+            <div style={_l.extend {}, style, {
+                display: 'flex', flexDirection: 'row'
+            }}>
+                {
+                    key_by_i intersperse (->
+                        <div style={width: pane_margin, flexShrink: 0} />
+                    ), cols.map (content) ->
+                        content({flex: 1, minWidth: 0})
+                }
+            </div>
+
+        even_vstack = (rows) -> (style) ->
+            <div style={_l.extend {}, style, {
+                display: 'flex', flexDirection: 'column'
+            }}>
+                {
+                    key_by_i intersperse (->
+                        <div style={height: pane_margin, flexShrink: 0} />
+                    ), rows.map (content) ->
+                        content({flex: 1, minHeight: 0})
+                }
+            </div>
+        ##
+
         @js_ast = babylon.parse(sample_js)
         @lispy_ast = js_to_lispy(@js_ast)
         @rr = lispy_eval(fresh_root_scope(), @lispy_ast)
         @evaled = @rr.value
 
-        panes = [
-            sample_js
-            pp @js_ast
-            pp @lispy_ast
-            pp @evaled
+        root = even_hstack [
+            even_vstack [
+                pane(sample_js)
+                pane(pp @js_ast)
+            ]
+            even_vstack [
+                pane(ppexpr @lispy_ast)
+                pane(pp @lispy_ast)
+            ]
+            even_vstack [
+                pane(pp @evaled)
+            ]
         ]
 
-        <div style={
-            flex: '1 1', margin: pane_margin
-            display: 'flex', flexDirection: 'row'
-            height: "calc(100vh - #{3 * pane_margin}px)"
-        }>
-            {
-                hlist panes, pane_margin, (content) ->
-                    <code style={_l.extend {flex: 1, overflow: 'auto'}, pane_style}>
-                        { content }
-                    </code>
-            }
-        </div>
+        return root({
+            margin: pane_margin
+            height: "calc(100vh - #{2 * pane_margin}px)"
+        })
 
 
 class JSTimeline
