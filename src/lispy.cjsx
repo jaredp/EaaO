@@ -1199,6 +1199,7 @@ class JSTimeline
             getChildren: (record) -> subrecords_for_record(record)
             onRecordClick: (record) =>
                 @active_record = record
+                @react_root.forceUpdate()
         })
 
         timeline_height = 200
@@ -1206,10 +1207,20 @@ class JSTimeline
             <div style={overflow: 'scroll', height: timeline_height, borderBottom: '1px solid #bbbbbb'}>
                 { timeline({position: 'relative'}) }
             </div>
+            <div style={height: pane_margin} />
+
+            <code style={_l.extend {}, pane_style, {
+                height: 50, overflow: 'auto'
+                marginLeft: pane_margin, marginRight: pane_margin
+            }}>
+                { inspect_value(@active_record.value) unless not @active_record? }
+            </code>
+
+            <div style={height: pane_margin} />
             <div style={
-                flex: '1 1', margin: pane_margin
+                flex: '1 1', minHeight: 0
                 display: 'flex', flexDirection: 'row'
-                height: "calc(100vh - #{3 * pane_margin + timeline_height}px)"
+                marginLeft: pane_margin, marginRight: pane_margin
             }>
                 {
                     hlist panes, pane_margin, (content) ->
@@ -1218,6 +1229,7 @@ class JSTimeline
                         </code>
                 }
             </div>
+            <div style={height: pane_margin} />
         </div>
 
     console_shortcuts: {
