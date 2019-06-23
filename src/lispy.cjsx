@@ -1175,6 +1175,11 @@ class JSTOLisp
 
 class JSTimeline
     init: (@react_root) ->
+        @active_record = null
+
+        # set up console shortcuts
+        Object.defineProperties window, _l.mapValues(@console_shortcuts, (v) -> {get: v})
+
     did_mount: ->
     render: ->
         @js_ast = babylon.parse(sample_js)
@@ -1193,7 +1198,7 @@ class JSTimeline
             label: (record) -> label_for_record(record)
             getChildren: (record) -> subrecords_for_record(record)
             onRecordClick: (record) =>
-                window.r = record
+                @active_record = record
         })
 
         timeline_height = 200
@@ -1214,6 +1219,10 @@ class JSTimeline
                 }
             </div>
         </div>
+
+    console_shortcuts: {
+        r: -> ui.active_record
+    }
 
 ##
 
