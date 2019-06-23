@@ -541,13 +541,9 @@ key_by_i = (lst) ->
 rk = (key) => (children) => <React.Fragment key={key} children={children} />
 
 vlist = (list, spacing, render_elem) ->
-    <React.Fragment>
-        { intersperse ((i) -> <div style={height: spacing} key={i * 2} />), list.map (elem, i) ->
-            <React.Fragment key={i * 2 + 1}>
-                { render_elem(elem) }
-            </React.Fragment>
-        }
-    </React.Fragment>
+    key_by_i intersperse (-> <div style={height: spacing} />), list.map(render_elem)
+hlist = (list, spacing, render_elem) ->
+    key_by_i intersperse (-> <div style={width: spacing} />), list.map(render_elem)
 
 [pane_margin, pane_padding] = [20, 10]
 pane_style = {
@@ -1078,14 +1074,14 @@ class JSTOLisp
         @evaled = @rr.value
 
         pp = (o) -> JSON.stringify(o, null, '   ')
-        panes = [
+        panes_content = [
             <div>{sample_js}</div>
             <div>{pp @js_ast}</div>
             <div>{pp @lispy_ast}</div>
             <div>{pp @evaled}</div>
         ]
 
-        <div style={{
+        panes = <div style={{
             margin: pane_margin
             display: 'flex'
             flexDirection: 'row'
@@ -1093,48 +1089,14 @@ class JSTOLisp
             height: "calc(100vh - #{3 * pane_margin}px)"
         }}>
             {
-                key_by_i intersperse (-> <div style={width: pane_margin} />), panes.map (content) ->
+                hlist panes_content, pane_margin, (content) ->
                     <code style={_l.extend {flex: 1, overflow: 'auto', height: '100%'}, pane_style}>
                         { content }
                     </code>
             }
         </div>
 
-##
-
-class JSClassic
-    init: (@react_root) ->
-    did_mount: ->
-    render: ->
-        @js_ast = babylon.parse(sample_js)
-        @lispy_ast = js_to_lispy(@js_ast)
-        @rr = lispy_eval(fresh_root_scope(), @lispy_ast)
-        @evaled = @rr.value
-
-        pp = (o) -> JSON.stringify(o, null, '   ')
-        panes = [
-            <div>{sample_js}</div>
-            <div>{pp @js_ast}</div>
-            <div>{pp @lispy_ast}</div>
-            <div>{pp @evaled}</div>
-        ]
-
-        <div style={{
-            margin: pane_margin
-            display: 'flex'
-            flexDirection: 'row'
-            flex: '1 1'
-            height: "calc(100vh - #{3 * pane_margin}px)"
-        }}>
-            {
-                key_by_i intersperse (-> <div style={width: pane_margin} />), panes.map (content) ->
-                    <code style={_l.extend {flex: 1, overflow: 'auto', height: '100%'}, pane_style}>
-                        { content }
-                    </code>
-            }
-        </div>
-
-
+        panes
 ##
 
 export App = createReactClass
@@ -1142,7 +1104,6 @@ export App = createReactClass
         @app_state = switch window.location.pathname
             when '/classic' then new Classic()
             when '/js' then new JSTOLisp()
-            when '/jsclassic' then new JSClassic()
             else new Lispy()
         window.ui = @app_state
         @app_state.init(this)
