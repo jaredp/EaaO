@@ -610,39 +610,37 @@ inspect_value = (value) ->
     else
         inspect(value)
 
-Timeline = ({root_record, onRecordClick, style}) ->
+Timeline = ({root, onRecordClick, label, getChildren, style}) ->
+    leaf_size = {width: 80, height: 22}
+    entry_spacing = {x: 3, y: 3}
+
+    render_entry = (call_record, {x, y, width}) =>
+        entry_padding_size = 3
+        entry_height = leaf_size.height
+        <div
+            children={label(call_record)}
+            style={{
+                boxModel: 'border-box'
+                top: y, left: x,
+                width: width - 8, height: entry_height - 8,
+                position: 'absolute',
+                backgroundColor: '#EEE', border: '2px solid #AAA'
+                padding: entry_padding_size
+                fontFamily: 'monospace'
+                fontSize: 14
+            }}
+            onClick={-> onRecordClick(call_record)}
+        />
+
     layout_entry = (call_record) =>
-        fn = call_record.args[0].value
-        callees = callee_records(call_record)
-
-        leaf_size = {width: 80, height: 22}
-        entry_spacing = {x: 3, y: 3}
-
-        render_entry = ({x, y, width}) =>
-            padding_size = 3
-            height = leaf_size.height
-            <div
-                children={closure_name(fn)}
-                style={{
-                    boxModel: 'border-box'
-                    top: y, left: x,
-                    width: width - 8, height: height - 8,
-                    position: 'absolute',
-                    backgroundColor: '#EEE', border: '2px solid #AAA'
-                    padding: padding_size
-                    fontFamily: 'monospace'
-                    fontSize: 14
-                }}
-                onClick={-> onRecordClick(call_record)}
-            />
-
-        if _l.isEmpty callees
+        children = getChildren(call_record)
+        if _l.isEmpty children
             {width: leaf_size.width, height: leaf_size.height, render: ({x, y}) ->
-                render_entry({x, y, width: leaf_size.width})
+                render_entry(call_record, {x, y, width: leaf_size.width})
             }
 
         else
-            children_layouts = callees.map(layout_entry)
+            children_layouts = children.map(layout_entry)
             width =  _l.sum(_l.map(children_layouts, 'width'))  + (children_layouts.length - 1) * entry_spacing.x
             height = _l.max(_l.map(children_layouts, 'height')) + leaf_size.height + entry_spacing.y
             { width, height, render: ({x, y}) ->
@@ -653,11 +651,11 @@ Timeline = ({root_record, onRecordClick, style}) ->
                             y: y + (leaf_size.height + entry_spacing.y)
                         })
                     }
-                    {render_entry({x, y, width})}
+                    {render_entry(call_record, {x, y, width})}
                 </React.Fragment>
             }
 
-    tree_layout = layout_entry(root_record)
+    tree_layout = layout_entry(root)
 
     <div
         style={_l.defaults {}, style, {
@@ -794,9 +792,11 @@ class Lispy
             }
         </div>
 
-        timeline = Timeline({
-            root_record
-            style: {position: 'relative'}
+        timeline = (style) => Timeline({
+            style
+            root: root_record
+            label: (call_record) -> closure_name(call_record.args[0].value)
+            getChildren: (call_record) -> callee_records(call_record)
             onRecordClick: (record) =>
                 window.r = record
                 if record.expr?
@@ -809,7 +809,7 @@ class Lispy
 
         <div style={height: '100vh', display: 'flex', flexDirection: 'column'}>
             <div style={overflow: 'scroll', height: 250, borderBottom: '1px solid #bbbbbb'}>
-                { timeline }
+                { timeline({position: 'relative'}) }
             </div>
             <div style={overflow: 'scroll', flex: 1}>
                 { panes }
