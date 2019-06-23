@@ -615,7 +615,7 @@ inspect_value = (value) ->
     else
         inspect(value)
 
-Timeline = ({root, onRecordClick, label, getChildren, style}) ->
+Timeline = ({roots, onRecordClick, label, getChildren, style}) ->
     leaf_size = {width: 80, height: 22}
     entry_spacing = {x: 3, y: 3}
 
@@ -645,22 +645,30 @@ Timeline = ({root, onRecordClick, label, getChildren, style}) ->
             }
 
         else
-            children_layouts = children.map(layout_entry)
-            width =  _l.sum(_l.map(children_layouts, 'width'))  + (children_layouts.length - 1) * entry_spacing.x
-            height = _l.max(_l.map(children_layouts, 'height')) + leaf_size.height + entry_spacing.y
-            { width, height, render: ({x, y}) ->
+            recursed = layout_siblings(children)
+            { width: recursed.width, height: recursed.height + leaf_size.height + entry_spacing.y, render: ({x, y}) =>
                 <React.Fragment>
-                    {children_layouts.map (child, i) =>
-                        rk(i) child.render({
-                            x: x + _l.sum(_l.map(children_layouts, 'width').slice(0, i))  + i * entry_spacing.x
-                            y: y + (leaf_size.height + entry_spacing.y)
-                        })
-                    }
-                    {render_entry(call_record, {x, y, width})}
+                    { recursed.render({x, y: y + leaf_size.height + entry_spacing.y}) }
+                    { render_entry(call_record, {x, y, width: recursed.width}) }
                 </React.Fragment>
             }
 
-    tree_layout = layout_entry(root)
+    layout_siblings = (children) ->
+        children_layouts = children.map(layout_entry)
+        width =  _l.sum(_l.map(children_layouts, 'width'))  + (children_layouts.length - 1) * entry_spacing.x
+        height = _l.max(_l.map(children_layouts, 'height'))
+        { width, height, render: ({x, y}) ->
+            <React.Fragment>
+                {children_layouts.map (child, i) =>
+                    rk(i) child.render({
+                        x: x + _l.sum(_l.map(children_layouts, 'width').slice(0, i))  + i * entry_spacing.x
+                        y: y
+                    })
+                }
+            </React.Fragment>
+        }
+
+    tree_layout = layout_siblings(roots)
 
     <div
         style={_l.defaults {}, style, {
@@ -787,7 +795,7 @@ class Lispy
     render: ->
         timeline = (style) => Timeline({
             style
-            root: root_record
+            roots: callee_records(root_record)
             label: (call_record) -> closure_name(call_record.args[0].value)
             getChildren: (call_record) -> callee_records(call_record)
             onRecordClick: (record) =>
