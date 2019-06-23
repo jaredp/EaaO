@@ -712,72 +712,73 @@ class Lispy
         chunk_ranges = _l.zip([0].concat(chunk_delimiters), chunk_delimiters.concat([lispy_code.length]))
         chunks = chunk_ranges.map ([start, end]) -> [start, end, lispy_code.slice(start, end)]
 
-        chunks_with_vals = _l.zip(chunks, root_record.value)
+        code_view_per_chunk = chunks.map ([chunk_start, chunk_end, chunk_source_code]) =>
+            while chunk_source_code[0] == '\n'
+                chunk_start += 1
+                chunk_source_code = chunk_source_code.slice(1)
+
+            range_intersection = ([s1, e1], [s2, e2]) -> [Math.max(s1, s2), Math.min(e1, e2)]
+            range_size = ([start, end]) -> Math.max(0, end - start)
+            ranges_overlap = (r1, r2) -> range_size(range_intersection(r1, r2)) > 0
+            range_offset = ([start, end], offset) -> [start + offset, end + offset]
+
+            chunk_range = [chunk_start, chunk_end]
+            chunk_highlight =
+                if @highlight_range and ranges_overlap(@highlight_range, chunk_range)
+                    range_offset (range_intersection @highlight_range, chunk_range), -chunk_start
+                else null
+
+            (extra_styles) => <code
+                style={_l.extend({}, pane_style, extra_styles)}
+                onClick={(e) =>
+                    cursor_in_chunk = caret_in_dom_text_for_evt({evt: e, is_root_container: (dom) -> dom.tagName == 'CODE'})
+                    unless cursor_in_chunk?
+                        @unhighlight()
+                        return
+
+                    cursor = chunk_start + cursor_in_chunk
+                    tokens = tokenize_source_str(lispy_code)
+                    clicked_token = _l.find tokens, ({source_range: [start, end]}) -> start <= cursor <= end
+
+                    unless clicked_token?
+                        @unhighlight()
+                        return
+                    @hl(clicked_token)
+                }
+            >
+                {
+                    if chunk_highlight == null
+                        chunk_source_code
+
+                    else
+                        [highlight_start, highlight_end] = chunk_highlight
+                        prefix      = chunk_source_code.slice(0, highlight_start)
+                        highlighted = chunk_source_code.slice(highlight_start, highlight_end)
+                        postfix     = chunk_source_code.slice(highlight_end)
+                        <React.Fragment>
+                            {prefix}
+                            <span ref="highlighted_chunk" style={
+                                backgroundColor: '#bbbbf7'
+                                margin: '-2px -5px'
+                                padding: '2px 5px'
+                                borderRadius: 3
+                            }>
+                                {highlighted}
+                            </span>
+                            {postfix}
+                        </React.Fragment>
+                }
+            </code>
 
         panes = <div>
-            { chunks_with_vals.map ([[chunk_start, chunk_end, chunk_source_code], eval_result], i) =>
-                while chunk_source_code[0] == '\n'
-                    chunk_start += 1
-                    chunk_source_code = chunk_source_code.slice(1)
-
-                range_intersection = ([s1, e1], [s2, e2]) -> [Math.max(s1, s2), Math.min(e1, e2)]
-                range_size = ([start, end]) -> Math.max(0, end - start)
-                ranges_overlap = (r1, r2) -> range_size(range_intersection(r1, r2)) > 0
-                range_offset = ([start, end], offset) -> [start + offset, end + offset]
-
-                chunk_range = [chunk_start, chunk_end]
-                chunk_highlight =
-                    if @highlight_range and ranges_overlap(@highlight_range, chunk_range)
-                        range_offset (range_intersection @highlight_range, chunk_range), -chunk_start
-                    else null
-
+            { _l.zip(code_view_per_chunk, root_record.value).map ([chunk_code_view, eval_result], i) =>
                 <div key={i} style={{
                     margin: pane_margin
                     display: 'flex'
                     flexDirection: 'row'
                     flex: '1 1'
                 }}>
-                    <code
-                        style={_l.extend({}, pane_style, flex: 1)}
-                        onClick={(e) =>
-                            cursor_in_chunk = caret_in_dom_text_for_evt({evt: e, is_root_container: (dom) -> dom.tagName == 'CODE'})
-                            unless cursor_in_chunk?
-                                @unhighlight()
-                                return
-
-                            cursor = chunk_start + cursor_in_chunk
-                            tokens = tokenize_source_str(lispy_code)
-                            clicked_token = _l.find tokens, ({source_range: [start, end]}) -> start <= cursor <= end
-
-                            unless clicked_token?
-                                @unhighlight()
-                                return
-                            @hl(clicked_token)
-                        }
-                    >
-                        {
-                            if chunk_highlight == null
-                                chunk_source_code
-
-                            else
-                                [highlight_start, highlight_end] = chunk_highlight
-                                prefix      = chunk_source_code.slice(0, highlight_start)
-                                highlighted = chunk_source_code.slice(highlight_start, highlight_end)
-                                postfix     = chunk_source_code.slice(highlight_end)
-                                <React.Fragment>
-                                    {prefix}
-                                    <span ref="highlighted_chunk" style={
-                                        backgroundColor: '#bbbbf7'
-                                        margin: '-2px -5px'
-                                        padding: '2px 5px'
-                                        borderRadius: 3
-                                    }>
-                                        {highlighted}
-                                    </span>
-                                    {postfix}
-                                </React.Fragment>
-                        }
-                    </code>
+                    { chunk_code_view({flex: 1}) }
 
                     <div style={width: pane_margin} />
 
