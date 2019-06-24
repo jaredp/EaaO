@@ -1186,17 +1186,31 @@ class JSTimeline
         @lispy_ast = js_to_lispy(@js_ast)
         @rr = lispy_eval(fresh_root_scope(), @lispy_ast)
         @evaled = @rr.value
+        root_scope = @rr.scope.vars
 
         panes = [
             sample_js
             pp @evaled
         ]
 
+        record_is_method_call = (record) -> record.args?[0].value == root_scope['js/.()']
+        color = (choice) -> (children) -> <span style={color: choice} children={children} />
+
         timeline = (style) => Timeline({
             style
             roots: @rr.args.slice(1)
-            label: (record) -> label_for_record(record)
-            getChildren: (record) -> subrecords_for_record(record)
+            label: (record) ->
+                return color('#8e3b8e')("::#{record.args[2].value}") if record_is_method_call(record)
+                label_for_record(record)
+            getChildren: (record) ->
+                if record_is_method_call(record)
+                    return _l.compact [
+                        record.args[1]
+                        record.args[3].args.slice(1)...
+                        record.body
+                        (record.callees ? [])...
+                    ]
+                subrecords_for_record(record)
             onRecordClick: (record) =>
                 @active_record = record
                 @react_root.forceUpdate()
