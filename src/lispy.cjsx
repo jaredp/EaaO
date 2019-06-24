@@ -656,13 +656,14 @@ label_for_record = (record) ->
 
 
 
-Timeline = ({roots, onRecordClick, label, getChildren, style}) ->
+Timeline = ({roots, onRecordClick, label, getChildren, style, selected_entry}) ->
     leaf_size = {width: 80, height: 22}
     entry_spacing = {x: 3, y: 3}
 
     render_entry = (call_record, {x, y, width}) =>
         entry_padding_size = 3
         entry_height = leaf_size.height
+        is_selected = (call_record == selected_entry)
         <div
             children={label(call_record)}
             style={{
@@ -670,7 +671,8 @@ Timeline = ({roots, onRecordClick, label, getChildren, style}) ->
                 top: y, left: x,
                 width: width - 8, height: entry_height - 8,
                 position: 'absolute',
-                backgroundColor: '#EEE', border: '2px solid #AAA'
+                backgroundColor: unless is_selected then '#EEE' else '#ade0ff'
+                border: unless is_selected then '2px solid #AAA' else '2px solid #00a9ff'
                 padding: entry_padding_size
                 fontFamily: 'monospace'
                 fontSize: 14
@@ -837,6 +839,7 @@ class Lispy
         timeline = (style) => Timeline({
             style
             roots: callee_records(root_record)
+            selected_entry: window.r
             label: (call_record) -> closure_name(call_record.args[0].value)
             getChildren: (call_record) -> callee_records(call_record)
             onRecordClick: (record) =>
@@ -1176,6 +1179,12 @@ class JSTOLisp
 
 class JSTimeline
     init: (@react_root) ->
+        # only run the program once, so we have one rr we can keep poking around with equal pointers
+        # across time
+        @lispy_ast = js_to_lispy(sample_js)
+        @rr = lispy_eval(fresh_root_scope(), @lispy_ast)
+
+        # UI state
         @active_record = null
 
         # set up console shortcuts
@@ -1183,8 +1192,6 @@ class JSTimeline
 
     did_mount: ->
     render: ->
-        @lispy_ast = js_to_lispy(sample_js)
-        @rr = lispy_eval(fresh_root_scope(), @lispy_ast)
         @evaled = @rr.value
         root_scope = @rr.scope.vars
 
@@ -1194,6 +1201,7 @@ class JSTimeline
         timeline = (style) => Timeline({
             style
             roots: @rr.args.slice(1)
+            selected_entry: @active_record
             label: (record) ->
                 return color('#8e3b8e')("::#{record.args[2].value}") if record_is_method_call(record)
                 label_for_record(record)
@@ -1214,7 +1222,14 @@ class JSTimeline
         code_view_per_chunk = chunked_code_views({
             source_code: sample_js
             chunk_delimiters: _l.map(@lispy_ast[1].slice(2), 'source_range.0')
-            highlight_range: @active_record?.expr?.source_range
+            highlight_range: do =>
+                return null if not @active_record?
+
+                if @active_record.expr?
+                    return @active_record?.expr?.source_range
+
+                if (not @active_record.expr?) and @active_record.args?[0].value[cl]?
+                    return @active_record.args[0].value[cl][1].source_range
 
             highlighted_chunk_ref: "highlighted_chunk"
             onClickInCode: (cursor) =>
