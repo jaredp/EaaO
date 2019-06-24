@@ -1150,7 +1150,7 @@ class JSTOLisp
         ##
 
         @js_ast = babylon.parse(sample_js)
-        @lispy_ast = js_to_lispy(@js_ast)
+        @lispy_ast = js_to_lispy(sample_js)
         @rr = lispy_eval(fresh_root_scope(), @lispy_ast)
         @evaled = @rr.value
 
@@ -1183,16 +1183,10 @@ class JSTimeline
 
     did_mount: ->
     render: ->
-        @js_ast = babylon.parse(sample_js)
-        @lispy_ast = js_to_lispy(@js_ast)
+        @lispy_ast = js_to_lispy(sample_js)
         @rr = lispy_eval(fresh_root_scope(), @lispy_ast)
         @evaled = @rr.value
         root_scope = @rr.scope.vars
-
-        panes = [
-            sample_js
-            pp @evaled
-        ]
 
         record_is_method_call = (record) -> record.args?[0].value == root_scope['js/.()']
         color = (choice) -> (children) -> <span style={color: choice} children={children} />
@@ -1217,9 +1211,37 @@ class JSTimeline
                 @react_root.forceUpdate()
         })
 
-        timeline_height = 200
+        code_view_per_chunk = chunked_code_views({
+            source_code: sample_js
+            chunk_delimiters: _l.map(@lispy_ast[1].slice(2), 'source_range.0')
+            highlight_range: null
+
+            highlighted_chunk_ref: "highlighted_chunk"
+            onClickInCode: (cursor) =>
+            onClickOutsideCode: =>
+        })
+
+        panes = _l.zip(code_view_per_chunk, @rr.value).map ([chunk_code_view, eval_result], i) =>
+            <div key={i} style={{
+                display: 'flex'
+                flexDirection: 'row'
+                flex: '1 1'
+            }}>
+                { chunk_code_view(_l.extend({}, pane_style, {flex: 1})) }
+
+                <div style={width: pane_margin} />
+
+                <code style={_l.extend({}, pane_style, flex: 1)} onClick={=>
+                    if eval_result?[cl]?
+                        [scope, lambda] = eval_result[cl]
+                        @hl(lambda)
+                }>
+                    { inspect_value(eval_result) }
+                </code>
+            </div>
+
         <div style={height: '100vh', display: 'flex', flexDirection: 'column'}>
-            <div style={overflow: 'scroll', height: timeline_height, borderBottom: '1px solid #bbbbbb'}>
+            <div style={overflow: 'scroll', height: 200, borderBottom: '1px solid #bbbbbb'}>
                 { timeline({position: 'relative'}) }
             </div>
             <div style={height: pane_margin} />
@@ -1234,15 +1256,10 @@ class JSTimeline
             <div style={height: pane_margin} />
             <div style={
                 flex: '1 1', minHeight: 0
-                display: 'flex', flexDirection: 'row'
+                display: 'flex', flexDirection: 'column'
                 marginLeft: pane_margin, marginRight: pane_margin
             }>
-                {
-                    hlist panes, pane_margin, (content) ->
-                        <code style={_l.extend {flex: 1, overflow: 'auto'}, pane_style}>
-                            { content }
-                        </code>
-                }
+                { vlist panes, pane_margin, (pane) -> pane }
             </div>
             <div style={height: pane_margin} />
         </div>

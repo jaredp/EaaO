@@ -3,16 +3,21 @@ _l = require 'lodash'
 
 babylon = require 'babylon'
 
-export js_to_lispy = (js) ->
-    $ = js_to_lispy
+export js_to_lispy = (js_source) ->
+    js_ast = babylon.parse(js_source)
+    return js_expr_to_lispy(js_ast.program)
+
+
+export js_expr_to_lispy = (js) ->
+    $ = js_expr_to_lispy
     $_ = (o, dfault) -> if o? then $(o) else dfault
     unknown = -> {unknown: js}
 
-    switch js.type
+    lispy_expr = do => switch js.type
         when 'File' then $(js.program)
 
         # assumes straightline control flow, with a final return
-        when 'Program' then stmt_list(js.body)
+        when 'Program' then ['call', [['var', '[]'], flatten_js_stmts(js.body).map(js_expr_to_lispy)...]]
         when 'BlockStatement' then stmt_list(js.body)
 
         # shouldn't be hit outside stmt_list.  Still...
@@ -51,13 +56,19 @@ export js_to_lispy = (js) ->
 
         else unknown()
 
+    # track the range in the source file
+    lispy_expr.source_range = [js.start, js.end]
+
+    return lispy_expr
+
+flatten_js_stmts = (stmts) -> rec_flatten stmts, (stmt) ->
+    switch stmt.type
+        when 'VariableDeclaration' then stmt.declarations
+        when 'BlockStatement' then stmt.body
+        else null
+
 stmt_list = (stmts) ->
-    ['call', [['var', ';'], rec_flatten(stmts, (stmt) ->
-        switch stmt.type
-            when 'VariableDeclaration' then stmt.declarations
-            when 'BlockStatement' then stmt.body
-            else null
-    ).map(js_to_lispy)...]]
+    ['call', [['var', ';'], flatten_js_stmts(stmts).map(js_expr_to_lispy)...]]
 
 # rec_flatten :: [A] -> (A -> Maybe [A]) -> [A]
 rec_flatten = (root, replace_with) ->
