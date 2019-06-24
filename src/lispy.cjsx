@@ -1214,7 +1214,7 @@ class JSTimeline
         code_view_per_chunk = chunked_code_views({
             source_code: sample_js
             chunk_delimiters: _l.map(@lispy_ast[1].slice(2), 'source_range.0')
-            highlight_range: null
+            highlight_range: @active_record?.expr?.source_range
 
             highlighted_chunk_ref: "highlighted_chunk"
             onClickInCode: (cursor) =>
