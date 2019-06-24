@@ -639,14 +639,15 @@ label_for_record = (record) ->
 
         return closure_name(record.args[0].value)
 
-    str = switch record.expr[0]
-        when 'lambda' then color('#7f4313') 'λ'
-        when 'call' then color('#8e3b8e') closure_name(record.args[0].value)
-        when 'var' then color('rgb(18, 154, 47)') "#{record.expr[1]}"
-        when 'lit' then color('#7f4313') pp record.expr[1]
-        when 'set' then color('rgb(160, 0, 0)') "#{record.expr[1]} ="
+    [color, str] = switch record.expr[0]
+        when 'lambda' then ['#7f4313', 'λ']
+        when 'call'   then ['#8e3b8e', closure_name(record.args[0].value)]
+        when 'var'    then ['#129a2f', "#{record.expr[1]}"]
+        when 'lit'    then ['#7f4313', pp record.expr[1]]
+        when 'set'    then ['#a00000', "= #{record.expr[1]}"]
 
-    <div children={str} style={
+    <div children={str} title={str} style={
+        color: color
         overflow: 'hidden'
         width: '100%'
         textOverflow: 'ellipsis'
