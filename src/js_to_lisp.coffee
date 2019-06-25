@@ -47,6 +47,8 @@ export js_expr_to_lispy = (js) ->
                 ['lambda', [], $(js.alternate)]
             ]]
 
+        when 'SequenceExpression' then ['call', [['var', ';'], js.expressions.map($)...]]
+
         when 'FunctionDeclaration', 'FunctionExpression', 'ArrowFunctionExpression'
         # `=>` have not quite the right semantics, but we expect these to be removed in -> ES5 pass
 
