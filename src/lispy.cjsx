@@ -551,9 +551,9 @@ key_by_i = (lst) ->
 rk = (key) => (children) => <React.Fragment key={key} children={children} />
 
 vlist = (list, spacing, render_elem) ->
-    key_by_i intersperse (-> <div style={height: spacing} />), list.map(render_elem)
+    key_by_i intersperse (-> <div style={height: spacing, flex: '0 0 auto'} />), list.map(render_elem)
 hlist = (list, spacing, render_elem) ->
-    key_by_i intersperse (-> <div style={width: spacing} />), list.map(render_elem)
+    key_by_i intersperse (-> <div style={width: spacing, flex: '0 0 auto'} />), list.map(render_elem)
 
 pp = (o) -> JSON.stringify(o, null, '   ')
 
@@ -1113,7 +1113,17 @@ window.sample_js = sample_js = js_source ->
 
     printTips().join('\n')
 
-    # ending with a solo `return` will suppress any `return` by CoffeeScript,
+    fib = (n) ->
+        x = # hack to make Coffeescript give us a ternary instead of an if-statement
+            if n < 2
+            then 1
+            else fib(n - 1) + fib(n - 2)
+
+    fib 5
+    fib 6
+    [1...12].map fib
+
+    # ending with a solo `return` will suppress any `return` by Coffeescript,
     # which is necessary because if we don't, the toplevel return will make babel angry
     # if we want to pretend this code is a file, which we do.
     return
@@ -1156,7 +1166,7 @@ class JSTOLisp
 
         @js_ast = babylon.parse(sample_js)
         @lispy_ast = js_to_lispy(sample_js)
-        @rr = try lispy_eval(fresh_root_scope(), @lispy_ast) catch err then {value: {error: err}}
+        @rr = try lispy_eval(fresh_root_scope(), @lispy_ast) catch err then {value: {error: err.toString()}}
         @evaled = @rr.value
         @js_evaled = try eval(sample_js) catch err then {error: err}
 
@@ -1258,7 +1268,7 @@ class JSTimeline
             }}>
                 { chunk_code_view(_l.extend({}, pane_style, {flex: 1})) }
 
-                <div style={width: pane_margin} />
+                <div style={width: pane_margin, flex: '0 0 auto'} />
 
                 <code style={_l.extend({}, pane_style, flex: 1)} onClick={=>
                     if eval_result?[cl]?
@@ -1282,15 +1292,17 @@ class JSTimeline
                 { inspect_value(@active_record.value) unless not @active_record? }
             </code>
 
-            <div style={height: pane_margin} />
+            <div style={height: pane_margin, borderBottom: '1px solid #bbbbbb'} />
+
             <div style={
                 flex: '1 1', minHeight: 0
                 display: 'flex', flexDirection: 'column'
-                marginLeft: pane_margin, marginRight: pane_margin
+                marginLeft: pane_margin, marginRight: pane_margin,
+                overflow: 'auto'
             }>
                 { vlist panes, pane_margin, (pane) -> pane }
+                <div style={height: pane_margin} />
             </div>
-            <div style={height: pane_margin} />
         </div>
 
     console_shortcuts: {

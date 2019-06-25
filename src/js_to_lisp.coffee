@@ -33,11 +33,19 @@ export js_expr_to_lispy = (js) ->
         when 'BinaryExpression'
             ['call', [['var', "js/#{js.operator}"], $(js.left), $(js.right)]]
         when 'StringLiteral' then ['lit', js.value]
+        when 'NumericLiteral' then ['lit', js.value]
         when 'ArrayExpression' then ['call', [['var', '[]'], js.elements.map($)...]]
 
         when 'AssignmentExpression'
             return unknown() unless js.operator == '=' and js.left.type == 'Identifier'
             ['set', js.left.name, $(js.right)]
+
+        when 'ConditionalExpression'
+            ['call', [['var', 'if'],
+                $(js.test),
+                ['lambda', [], $(js.consequent)],
+                ['lambda', [], $(js.alternate)]
+            ]]
 
         when 'FunctionDeclaration', 'FunctionExpression', 'ArrowFunctionExpression'
         # `=>` have not quite the right semantics, but we expect these to be removed in -> ES5 pass
@@ -45,6 +53,8 @@ export js_expr_to_lispy = (js) ->
             # assumes params are simple
             fn = ['lambda', _l.map(js.params, 'name'), $(js.body)]
             return fn unless js.id
+
+            # blatently the wrong semantics— the function declaration gets "hoisted"
             return ['set', js.id.name, fn] if js.id
 
         when 'CallExpression'
