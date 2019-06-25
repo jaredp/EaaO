@@ -223,7 +223,7 @@ window.fresh_root_scope = fresh_root_scope = ->
 
     builtin_vals = {
         null: null
-        console
+        console, _l
     }
 
     return {vars: {builtin_fns..., builtin_vals...}, parent: null}
@@ -1092,6 +1092,11 @@ class Classic
 {js_to_lispy} = require './js_to_lisp'
 babylon = require 'babylon'
 
+###
+# Sadly, this technique doesn't work because the lambda will get minified for "prod" by now.sh,
+# which, while not technically breaking things, makes for a poor demo.  This is, by far, the most
+# silliest edge case I've ever gotten in trouble with minifiers for.  Having said that, I'm sure
+# some true LISPers have done worse.
 js_source = (lambda) ->
     fn_source = lambda.toString()
     block_stmt = babylon.parseExpression(fn_source).body
@@ -1101,32 +1106,30 @@ js_source = (lambda) ->
         _l.first(block_stmt.body).start,
         _l.nth(block_stmt.body, -1).end
     )
+###
 
-window.sample_js = sample_js = js_source ->
-    tips = [
-        'hello'
-        'world!'
-    ]
+window.sample_js = sample_js = """
 
-    printTips = ->
-        tips.map (tip, i) -> "Tip #{i}: #{tip}"
+var tips = [
+    'hello',
+    'world!'
+];
 
-    printTips().join('\n')
+var printTips = function() {
+    return tips.map(function(tip, i){ return "Tip " + i + ": " + tip; });
+};
 
-    fib = (n) ->
-        x = # hack to make Coffeescript give us a ternary instead of an if-statement
-            if n < 2
-            then 1
-            else fib(n - 1) + fib(n - 2)
+printTips().join('\\n');
 
-    fib 5
-    fib 6
-    [1...12].map fib
+var fib = function(n) {
+    return n < 2 ? 1 : fib(n - 1) + fib(n - 2);
+};
 
-    # ending with a solo `return` will suppress any `return` by Coffeescript,
-    # which is necessary because if we don't, the toplevel return will make babel angry
-    # if we want to pretend this code is a file, which we do.
-    return
+fib(5);
+fib(6);
+_l.range(12).map(fib);
+
+"""
 
 class JSTOLisp
     init: (@react_root) ->
