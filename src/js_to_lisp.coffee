@@ -11,7 +11,7 @@ export js_to_lispy = (js_source) ->
 export js_expr_to_lispy = (js) ->
     $ = js_expr_to_lispy
     $_ = (o, dfault) -> if o? then $(o) else dfault
-    unknown = -> {unknown: js}
+    unknown = -> ['call', [['var', 'js/unknown'], ['lit', js]]]
 
     lispy_expr = do => switch js.type
         when 'File' then $(js.program)
@@ -34,6 +34,10 @@ export js_expr_to_lispy = (js) ->
             ['call', [['var', "js/#{js.operator}"], $(js.left), $(js.right)]]
         when 'StringLiteral' then ['lit', js.value]
         when 'ArrayExpression' then ['call', [['var', '[]'], js.elements.map($)...]]
+
+        when 'AssignmentExpression'
+            return unknown() unless js.operator == '=' and js.left.type == 'Identifier'
+            ['set', js.left.name, $(js.right)]
 
         when 'FunctionDeclaration', 'FunctionExpression', 'ArrowFunctionExpression'
         # `=>` have not quite the right semantics, but we expect these to be removed in -> ES5 pass

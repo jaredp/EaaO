@@ -133,7 +133,7 @@ lispy_eval = (scope, expr) ->
             # track closures' names for debugging
             # approach: sketchily guess if it looks like a closure
             # Debugging tool idea: find all the names any object's been given, ever
-            if record.body.value[cl]?
+            if record.body.value?[cl]?
                 (record.body.value[cl].names ?= new Set()).add(varname)
 
             record.body.value
@@ -466,7 +466,7 @@ window.ppexpr = ppexpr = (expr) ->
                 "<lit>"
 
         when 'set'
-            "(#{expr[1]} = #{ppexpr expr[2]}"
+            "(#{expr[1]} = #{ppexpr expr[2]})"
 
 
 ##
@@ -1092,29 +1092,31 @@ class Classic
 {js_to_lispy} = require './js_to_lisp'
 babylon = require 'babylon'
 
-sample_js = """
-    /**
-     * Paste or drop some JavaScript here and explore
-     * the syntax tree created by chosen parser.
-     * You can use all the cool new features from ES6
-     * and even more. Enjoy!
-     */
+js_source = (lambda) ->
+    fn_source = lambda.toString()
+    block_stmt = babylon.parseExpression(fn_source).body
+    # drop the curly braces around the block stmt so we get multiple stmts
+    # do it by taking the beginning of the body to the end of the body
+    return fn_source.slice(
+        _l.first(block_stmt.body).start,
+        _l.nth(block_stmt.body, -1).end
+    )
 
-    let tips = [
-      "Click on any AST node with a '+' to expand it",
+window.sample_js = sample_js = js_source ->
+    tips = [
+        'hello'
+        'world!'
+    ]
 
-      "Hovering over a node highlights the \
-       corresponding part in the source code",
+    printTips = ->
+        tips.map (tip, i) -> "Tip #{i}: #{tip}"
 
-      "Shift click on an AST node expands the whole substree"
-    ];
+    printTips().join('\n')
 
-    function printTips() {
-      return tips.map((tip, i) => "Tip " + i + ": " + tip);
-    }
-
-    printTips()
-"""
+    # ending with a solo `return` will suppress any `return` by CoffeeScript,
+    # which is necessary because if we don't, the toplevel return will make babel angry
+    # if we want to pretend this code is a file, which we do.
+    return
 
 class JSTOLisp
     init: (@react_root) ->
@@ -1154,8 +1156,9 @@ class JSTOLisp
 
         @js_ast = babylon.parse(sample_js)
         @lispy_ast = js_to_lispy(sample_js)
-        @rr = lispy_eval(fresh_root_scope(), @lispy_ast)
+        @rr = try lispy_eval(fresh_root_scope(), @lispy_ast) catch err then {value: {error: err}}
         @evaled = @rr.value
+        @js_evaled = try eval(sample_js) catch err then {error: err}
 
         root = even_hstack [
             even_vstack [
@@ -1168,6 +1171,17 @@ class JSTOLisp
             ]
             even_vstack [
                 pane(pp @evaled)
+                pane(pp @js_evaled)
+                pane do =>
+                    if _l.isEqual _l.last(@evaled), @js_evaled
+                        <React.Fragment>
+                            <span style={
+                                position: 'relative', bottom: -2
+                            }>✅</span>
+                            matches
+                        </React.Fragment>
+                    else
+                        "🚫 fails"
             ]
         ]
 
