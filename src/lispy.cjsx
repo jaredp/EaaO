@@ -1165,13 +1165,27 @@ class JSTOLisp
                         content({flex: 1, minHeight: 0})
                 }
             </div>
+
+        perf_of = (expr) ->
+            start = window.performance.now()
+            expr()
+            end = window.performance.now()
+            return end - start
+
+        pn = (number) ->
+            # round to 2 decimal places
+            String(Math.round(number * 100) / 100)
+
         ##
 
         @js_ast = babylon.parse(sample_js)
         @lispy_ast = js_to_lispy(sample_js)
-        @rr = try lispy_eval(fresh_root_scope(), @lispy_ast) catch err then {value: {error: err.toString()}}
+        @root_scope = fresh_root_scope()
+        @transpiled_perf = perf_of =>
+            @rr = try lispy_eval(@root_scope, @lispy_ast) catch err then {value: {error: err.toString()}}
         @evaled = @rr.value
-        @js_evaled = try eval(sample_js) catch err then {error: err}
+        @js_perf = perf_of =>
+            @js_evaled = try eval(sample_js) catch err then {error: err}
 
         root = even_hstack [
             even_vstack [
@@ -1185,16 +1199,26 @@ class JSTOLisp
             even_vstack [
                 pane(pp @evaled)
                 pane(pp @js_evaled)
-                pane do =>
-                    if _l.isEqual _l.last(@evaled), @js_evaled
-                        <React.Fragment>
-                            <span style={
-                                position: 'relative', bottom: -2
-                            }>✅</span>
-                            matches
-                        </React.Fragment>
-                    else
-                        "🚫 fails"
+                pane <React.Fragment>
+                    <div>
+                    {
+                        if _l.isEqual _l.last(@evaled), @js_evaled
+                            <React.Fragment>
+                                <span style={
+                                    position: 'relative', bottom: -2
+                                }>✅</span>
+                                matches
+                            </React.Fragment>
+                        else
+                            "🚫 fails"
+                    }
+                    </div>
+                    <div>
+                        <div>{pn (@transpiled_perf / @js_perf)}x slowdown</div>
+                        <div>{pn @transpiled_perf}ms (transpiled) vs {pn @js_perf}ms (original js)</div>
+                        <button children="rerun" onClick={=> @react_root.forceUpdate()} />
+                    </div>
+                </React.Fragment>
             ]
         ]
 
