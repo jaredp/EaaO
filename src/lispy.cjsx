@@ -154,6 +154,59 @@ lispy_eval = (scope, expr) ->
     return record
 
 
+
+# lispy_eval :: Scope -> Expr -> Value
+lispy_eval_norecord = (scope, expr) ->
+    switch expr[0]
+        when 'var'
+            [_expr_ty, varname] = expr
+            lookup_result = var_lookup(scope, varname)
+            throw new Error("invalid var #{varname}") if lookup_result == no_such_var
+            lookup_result
+
+        when 'lambda'
+            [_expr_ty, arg_names, body] = expr
+            jsfn = () ->
+                labeled_args = {}
+                for arg, i in arguments
+                    labeled_args[arg_names[i]] = arg
+                return lispy_eval_norecord({parent: scope, vars: labeled_args}, body)
+            jsfn[cl] = [scope, arg_names, body]
+            return jsfn
+
+        when 'lit'
+            expr[1]
+
+        when 'set'
+            [_expr_ty, varname, new_val_expr] = expr
+            new_val = lispy_eval_norecord(scope, new_val_expr)
+            set_var(scope, varname, new_val)
+            new_val
+
+        when 'call'
+            [_expr_ty, subexprs] = expr
+
+            fn = lispy_eval_norecord(scope, subexprs[0])
+
+            if fn[cl]?
+                [captured_scope, arg_names, body] = fn[cl]
+                labeled_args = {}
+                `
+                for (var i = 1; i < subexprs.length; i++) {
+                    labeled_args[arg_names[i - 1]] = lispy_eval_norecord(scope, subexprs[i]);
+                }
+                `
+                return lispy_eval_norecord({parent: scope, vars: labeled_args}, body)
+
+            else
+                args = []
+                for i in [1...subexprs.length]
+                    args.push lispy_eval_norecord(scope, subexprs[i])
+                return fn(args...)
+
+
+        else throw new Error("tried to eval a non-expr")
+
 # fresh_root_scope :: -> Scope
 window.fresh_root_scope = fresh_root_scope = ->
     # builtin_native_fns :: {Var: (Value...) -> Value}
