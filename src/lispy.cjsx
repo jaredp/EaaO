@@ -737,15 +737,17 @@ Timeline = ({roots, onRecordClick, label, getChildren, style, selected_entry}) -
         children = getChildren(call_record)
         if _l.isEmpty children
             {width: leaf_size.width, height: leaf_size.height, render: ({x, y}) ->
-                render_entry(call_record, {x, y, width: leaf_size.width})
+                <React.Fragment>
+                    { render_entry(call_record, {x, y, width: leaf_size.width}) }
+                </React.Fragment>
             }
 
         else
             recursed = layout_siblings(children)
             { width: recursed.width, height: recursed.height + leaf_size.height + entry_spacing.y, render: ({x, y}) =>
                 <React.Fragment>
-                    { recursed.render({x, y: y + leaf_size.height + entry_spacing.y}) }
                     { render_entry(call_record, {x, y, width: recursed.width}) }
+                    { recursed.render({x, y: y + leaf_size.height + entry_spacing.y}) }
                 </React.Fragment>
             }
 
