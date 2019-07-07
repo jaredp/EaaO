@@ -349,7 +349,6 @@ window.all_exprs_in_eval_order = all_exprs_in_eval_order = (expr) ->
 
 window.all_subexprs = all_subexprs = all_exprs_in_source_order
 
-
 window.recursive_records_in_eval_order = recursive_records_in_eval_order = (record) ->
     _l.flatten _l.compact [
         _l.flatMap(record.args, recursive_records_in_eval_order) if record.args? and record.expr?
@@ -371,6 +370,16 @@ window.subrecords_for_record = subrecords_for_record = (record) ->
         [record.body]
         record.callees
     ]
+
+
+window.find_record = find_record = (root, pred) ->
+    return root if pred(root)
+    for child in subrecords_for_record(root)
+        return found if (found = find_record(child, pred))?
+
+window.lambda_creator = lambda_creator = (root, lambda) ->
+    find_record root, (r) -> r.expr?[0] == 'lambda' and r.value == lambda
+
 
 closure_name = (fn) ->
     if fn[cl]?
@@ -959,8 +968,8 @@ class Lispy
 
                 <code style={_l.extend({}, pane_style, flex: 1)} onClick={=>
                     if eval_result?[cl]?
-                        [scope, lambda] = eval_result[cl]
-                        @hl(lambda)
+                        @active_record = lambda_creator(root_record, eval_result)
+                        @react_root.forceUpdate()
                 }>
                     { inspect_value(eval_result) }
                 </code>
@@ -1459,8 +1468,8 @@ class JSTimeline
 
                 <code style={_l.extend({}, pane_style, flex: 1)} onClick={=>
                     if eval_result?[cl]?
-                        [scope, lambda] = eval_result[cl]
-                        @hl(lambda)
+                        @active_record = lambda_creator(@rr, eval_result)
+                        @react_root.forceUpdate()
                 }>
                     { inspect_value(eval_result) }
                 </code>
