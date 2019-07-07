@@ -608,6 +608,31 @@ vlist = (list, spacing, render_elem) ->
 hlist = (list, spacing, render_elem) ->
     key_by_i intersperse (-> <div style={width: spacing, flex: '0 0 auto'} />), list.map(render_elem)
 
+even_hstack = (cols) -> (style) ->
+    <div style={_l.extend {}, style, {
+        display: 'flex', flexDirection: 'row'
+    }}>
+        {
+            key_by_i intersperse (->
+                <div style={width: pane_margin, flexShrink: 0} />
+            ), cols.map (content) ->
+                content({flex: 1, minWidth: 0})
+        }
+    </div>
+
+even_vstack = (rows) -> (style) ->
+    <div style={_l.extend {}, style, {
+        display: 'flex', flexDirection: 'column'
+    }}>
+        {
+            key_by_i intersperse (->
+                <div style={height: pane_margin, flexShrink: 0} />
+            ), rows.map (content) ->
+                content({flex: 1, minHeight: 0})
+        }
+    </div>
+
+
 pp = (o) -> JSON.stringify(o, null, '   ')
 
 
@@ -620,6 +645,7 @@ pane_style = {
     whiteSpace: 'pre'
     fontSize: 14
     overflow: 'auto'
+    fontFamily: 'monospace'
 }
 
 mini_label_style = {
@@ -941,18 +967,39 @@ class Lispy
             </div>
 
         <div style={height: '100vh', display: 'flex', flexDirection: 'column'}>
-            <div style={overflow: 'scroll', height: 250, borderBottom: '1px solid #bbbbbb'}>
+            <div style={overflow: 'scroll', height: 150, borderBottom: '1px solid #bbbbbb'}>
                 { timeline({position: 'relative'}) }
             </div>
 
             <div style={height: pane_margin} />
 
-            <code style={_l.extend {}, pane_style, {
-                height: 50, overflow: 'auto'
-                marginLeft: pane_margin, marginRight: pane_margin
-            }}>
-                { inspect_value(@active_record.value) unless not @active_record? }
-            </code>
+            {
+                # call record summary view
+                ((o) -> even_hstack(o.map((col) -> (col_flex_styling) ->
+                    <div style={_l.extend({
+                        overflow: 'auto', paddingTop: pane_padding, paddingBottom: pane_padding
+                    }, col_flex_styling)} children={col} />
+                ))(_l.extend {}, pane_style, {
+                    height: 100
+                    marginLeft: pane_margin, marginRight: pane_margin
+                    paddingTop: 0, paddingBottom: 0
+                })) _l.flatten [
+                    if @active_record?
+                        [
+                            do =>
+                                interesting_vars =
+                                    if @active_record.body?
+                                    then @active_record.body.scope.vars
+                                    else _l.map @active_record.args, 'value'
+                                props_table({
+                                    data: _l.toPairs(interesting_vars).map ([label, v]) ->
+                                        [label, inspect_value(v)]
+                                })
+
+                            inspect_value(@active_record.value)
+                        ]
+                ]
+            }
 
             <div style={height: pane_margin, borderBottom: '1px solid #bbbbbb'} />
 
@@ -1278,30 +1325,6 @@ class JSTOLisp
             <code style={_l.extend {overflow: 'auto'}, pane_style, style}>
                 { content }
             </code>
-
-        even_hstack = (cols) -> (style) ->
-            <div style={_l.extend {}, style, {
-                display: 'flex', flexDirection: 'row'
-            }}>
-                {
-                    key_by_i intersperse (->
-                        <div style={width: pane_margin, flexShrink: 0} />
-                    ), cols.map (content) ->
-                        content({flex: 1, minWidth: 0})
-                }
-            </div>
-
-        even_vstack = (rows) -> (style) ->
-            <div style={_l.extend {}, style, {
-                display: 'flex', flexDirection: 'column'
-            }}>
-                {
-                    key_by_i intersperse (->
-                        <div style={height: pane_margin, flexShrink: 0} />
-                    ), rows.map (content) ->
-                        content({flex: 1, minHeight: 0})
-                }
-            </div>
 
         perf_of = (expr) ->
             start = window.performance.now()
