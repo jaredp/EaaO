@@ -709,7 +709,15 @@ label_for_record = (record) ->
 
 
 
-Timeline = ({roots, onRecordClick, label, getChildren, style, selected_entry}) ->
+Timeline = ({
+    roots
+    label, getChildren
+    selected_entry
+    collapsed_entries = new Set()
+    onRecordClick = (->)
+    onRecordDblClick = (->)
+    style
+}) ->
     leaf_size = {width: 80, height: 22}
     entry_spacing = {x: 3, y: 3}
 
@@ -729,12 +737,22 @@ Timeline = ({roots, onRecordClick, label, getChildren, style, selected_entry}) -
                 padding: entry_padding_size
                 fontFamily: 'monospace'
                 fontSize: 14
+                transition: '0.3s cubic-bezier(0.77, 0, 0.175, 1)'
             }}
+            onMouseDown={(evt) ->
+                # prevent text selection on double click
+                evt.preventDefault()
+            }
             onClick={-> onRecordClick(call_record)}
+            onDoubleClick={-> onRecordDblClick(call_record)}
         />
 
     layout_entry = (call_record) =>
-        children = getChildren(call_record)
+        children =
+            unless collapsed_entries.has(call_record)
+            then getChildren(call_record)
+            else []
+
         if _l.isEmpty children
             {width: leaf_size.width, height: leaf_size.height, render: ({x, y}) ->
                 <React.Fragment>
@@ -859,6 +877,7 @@ caret_in_dom_text_for_evt = ({evt, is_root_container}) ->
 class Lispy
     init: (@react_root) ->
         @highlight_range = null # {start: {line: int, col: int}, end: {line: int, col: int}}
+        @collapsed = new Set()
 
     did_mount: ->
 
@@ -895,6 +914,7 @@ class Lispy
             style
             roots: callee_records(root_record)
             selected_entry: window.r
+            collapsed_entries: @collapsed
             label: (call_record) -> closure_name(call_record.args[0].value)
             getChildren: (call_record) -> callee_records(call_record)
             onRecordClick: (record) =>
@@ -904,6 +924,13 @@ class Lispy
 
                 else if record.args?[0].value[cl]?
                     @hl(record.args[0].value[cl][1])
+
+            onRecordDblClick: (record) =>
+                toggle_set_contains = (set, elem) ->
+                    method = if set.has(elem) then "delete" else "add"
+                    set[method](elem)
+                toggle_set_contains(@collapsed, record)
+                @react_root.forceUpdate()
         })
 
         code_view_per_chunk = chunked_code_views({
