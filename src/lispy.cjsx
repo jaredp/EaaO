@@ -876,12 +876,109 @@ caret_in_dom_text_for_evt = ({evt, is_root_container}) ->
 
 class Lispy
     init: (@react_root) ->
-        @highlight_range = null # {start: {line: int, col: int}, end: {line: int, col: int}}
         @collapsed = new Set()
 
-    did_mount: ->
+        # UI state
+        @active_record = null
 
-    cycle_highlight_through_exprs: ->
+        # set up console shortcuts
+        Object.defineProperties window, _l.mapValues(@console_shortcuts, (v) -> {get: v})
+
+    render: ->
+        timeline = (style) => Timeline({
+            style
+            roots: callee_records(root_record)
+            selected_entry: @active_record
+            collapsed_entries: @collapsed
+            label: (call_record) -> closure_name(call_record.args[0].value)
+            getChildren: (call_record) -> callee_records(call_record)
+            onRecordClick: (record) =>
+                @active_record = record
+                @react_root.forceUpdate()
+
+            onRecordDblClick: (record) =>
+                toggle_set_contains = (set, elem) ->
+                    method = if set.has(elem) then "delete" else "add"
+                    set[method](elem)
+                toggle_set_contains(@collapsed, record)
+                @react_root.forceUpdate()
+        })
+
+        code_view_per_chunk = chunked_code_views({
+            source_code: lispy_code
+            chunk_delimiters: _l.map(demo_parsed_lispy, 'source_range.1').slice(0, -1)
+            highlight_range: do =>
+                return null if not @active_record?
+
+                if @active_record.expr?
+                    return @active_record?.expr?.source_range
+
+                else if @active_record.args?[0].value[cl]?
+                    return @active_record.args[0].value[cl][1].source_range
+
+            highlighted_chunk_ref: "highlighted_chunk"
+            onClickInCode: (cursor) =>
+            onClickOutsideCode: =>
+        })
+
+        panes = _l.zip(code_view_per_chunk, root_record.value).map ([chunk_code_view, eval_result], i) =>
+            <div key={i} style={{
+                display: 'flex'
+                flexDirection: 'row'
+                flex: '1 1'
+            }}>
+                { chunk_code_view(_l.extend({}, pane_style, {flex: 1})) }
+
+                <div style={width: pane_margin} />
+
+                <code style={_l.extend({}, pane_style, flex: 1)} onClick={=>
+                    if eval_result?[cl]?
+                        [scope, lambda] = eval_result[cl]
+                        @hl(lambda)
+                }>
+                    { inspect_value(eval_result) }
+                </code>
+            </div>
+
+        <div style={height: '100vh', display: 'flex', flexDirection: 'column'}>
+            <div style={overflow: 'scroll', height: 250, borderBottom: '1px solid #bbbbbb'}>
+                { timeline({position: 'relative'}) }
+            </div>
+
+            <div style={height: pane_margin} />
+
+            <code style={_l.extend {}, pane_style, {
+                height: 50, overflow: 'auto'
+                marginLeft: pane_margin, marginRight: pane_margin
+            }}>
+                { inspect_value(@active_record.value) unless not @active_record? }
+            </code>
+
+            <div style={height: pane_margin, borderBottom: '1px solid #bbbbbb'} />
+
+            <div style={
+                flex: '1 1', minHeight: 0
+                display: 'flex', flexDirection: 'column'
+                marginLeft: pane_margin, marginRight: pane_margin,
+                overflow: 'auto'
+            }>
+                { vlist panes, pane_margin, (pane) -> pane }
+                <div style={height: pane_margin} />
+            </div>
+        </div>
+
+    console_shortcuts: {
+        r: -> ui.active_record
+    }
+
+##
+
+
+class LispySyntaxExplorer
+    init: (@react_root) ->
+        @highlight_range = null # {start: {line: int, col: int}, end: {line: int, col: int}}
+
+    cycle_highlight_through_exprs: =>
         tick_forever = (cycle_time_ms, fn) ->
             ticks = 0
             ((o) -> window.setInterval(o, cycle_time_ms)) () =>
@@ -897,7 +994,6 @@ class Lispy
             fn: (record) => @hl record.expr
         })
 
-
     # parsed_object is something that has a source_range, typically a token or expr
     hl: (parsed_object) ->
         {source_range} = parsed_object
@@ -910,29 +1006,6 @@ class Lispy
         @react_root.forceUpdate()
 
     render: ->
-        timeline = (style) => Timeline({
-            style
-            roots: callee_records(root_record)
-            selected_entry: window.r
-            collapsed_entries: @collapsed
-            label: (call_record) -> closure_name(call_record.args[0].value)
-            getChildren: (call_record) -> callee_records(call_record)
-            onRecordClick: (record) =>
-                window.r = record
-                if record.expr?
-                    @hl(record.expr)
-
-                else if record.args?[0].value[cl]?
-                    @hl(record.args[0].value[cl][1])
-
-            onRecordDblClick: (record) =>
-                toggle_set_contains = (set, elem) ->
-                    method = if set.has(elem) then "delete" else "add"
-                    set[method](elem)
-                toggle_set_contains(@collapsed, record)
-                @react_root.forceUpdate()
-        })
-
         code_view_per_chunk = chunked_code_views({
             source_code: lispy_code
             chunk_delimiters: _l.map(demo_parsed_lispy, 'source_range.1').slice(0, -1)
@@ -948,37 +1021,19 @@ class Lispy
                 @unhighlight()
         })
 
-        panes = <div>
-            { _l.zip(code_view_per_chunk, root_record.value).map ([chunk_code_view, eval_result], i) =>
-                <div key={i} style={{
-                    margin: pane_margin
-                    display: 'flex'
-                    flexDirection: 'row'
-                    flex: '1 1'
-                }}>
-                    { chunk_code_view(_l.extend({}, pane_style, {flex: 1})) }
-
-                    <div style={width: pane_margin} />
-
-                    <code style={_l.extend({}, pane_style, flex: 1)} onClick={=>
-                        if eval_result?[cl]?
-                            [scope, lambda] = eval_result[cl]
-                            @hl(lambda)
-                    }>
-                        { inspect_value(eval_result) }
-                    </code>
-                </div>
+        <div style={
+            margin: pane_margin
+        }>
+            { vlist code_view_per_chunk, pane_margin, (chunk_code_view) ->
+                chunk_code_view(pane_style)
             }
+            <button
+                onClick={@cycle_highlight_through_exprs}
+                children="cycle"
+                style={position: 'fixed', bottom: 15, right: 15}
+            />
         </div>
 
-        <div style={height: '100vh', display: 'flex', flexDirection: 'column'}>
-            <div style={overflow: 'scroll', height: 250, borderBottom: '1px solid #bbbbbb'}>
-                { timeline({position: 'relative'}) }
-            </div>
-            <div style={overflow: 'scroll', flex: 1}>
-                { panes }
-            </div>
-        </div>
 
 
 ##
@@ -1361,7 +1416,7 @@ class JSTimeline
                 if @active_record.expr?
                     return @active_record?.expr?.source_range
 
-                if (not @active_record.expr?) and @active_record.args?[0].value[cl]?
+                else if @active_record.args?[0].value[cl]?
                     return @active_record.args[0].value[cl][1].source_range
 
             highlighted_chunk_ref: "highlighted_chunk"
@@ -1426,11 +1481,12 @@ export App = createReactClass
             when '/classic' then new Classic()
             when '/js-to-lispy' then new JSTOLisp()
             when '/js' then new JSTimeline()
+            when '/lispy-syntax' then new LispySyntaxExplorer()
             else new Lispy()
         window.ui = @app_state
         @app_state.init(this)
 
     componentDidMount: ->
-        @app_state.did_mount()
+        @app_state.did_mount?()
 
     render: -> @app_state.render()
