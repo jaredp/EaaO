@@ -599,6 +599,10 @@ window.call_records = call_records = preorder root_record, callee_records
 
 ##
 
+toggle_set_contains = (set, elem) ->
+    method = if set.has(elem) then "delete" else "add"
+    set[method](elem)
+
 # intersperse :: A -> [A] -> [A]
 intersperse = (between, arr) ->
     res = []
@@ -911,10 +915,9 @@ caret_in_dom_text_for_evt = ({evt, is_root_container}) ->
 
 class Lispy
     init: (@react_root) ->
-        @collapsed = new Set()
-
         # UI state
         @active_record = null
+        @collapsed = new Set()
 
         # set up console shortcuts
         Object.defineProperties window, _l.mapValues(@console_shortcuts, (v) -> {get: v})
@@ -930,11 +933,7 @@ class Lispy
             onRecordClick: (record) =>
                 @active_record = record
                 @react_root.forceUpdate()
-
             onRecordDblClick: (record) =>
-                toggle_set_contains = (set, elem) ->
-                    method = if set.has(elem) then "delete" else "add"
-                    set[method](elem)
                 toggle_set_contains(@collapsed, record)
                 @react_root.forceUpdate()
         })
@@ -998,8 +997,10 @@ class Lispy
                             do =>
                                 interesting_vars =
                                     if @active_record.body?
-                                    then @active_record.body.scope.vars
-                                    else _l.map @active_record.args, 'value'
+                                        @active_record.body.scope.vars
+                                    else if @active_record.args?
+                                        _l.map @active_record.args, 'value'
+                                    else []
                                 props_table({
                                     data: _l.toPairs(interesting_vars).map ([label, v]) ->
                                         [label, inspect_value(v)]
@@ -1406,6 +1407,7 @@ class JSTimeline
 
         # UI state
         @active_record = null
+        @collapsed = new Set()
 
         # set up console shortcuts
         Object.defineProperties window, _l.mapValues(@console_shortcuts, (v) -> {get: v})
@@ -1422,6 +1424,7 @@ class JSTimeline
             style
             roots: @rr.args.slice(1)
             selected_entry: @active_record
+            collapsed_entries: @collapsed
             label: (record) ->
                 return color('#8e3b8e')("::#{record.args[2].value}") if record_is_method_call(record)
                 label_for_record(record)
@@ -1436,6 +1439,9 @@ class JSTimeline
                 subrecords_for_record(record)
             onRecordClick: (record) =>
                 @active_record = record
+                @react_root.forceUpdate()
+            onRecordDblClick: (record) =>
+                toggle_set_contains(@collapsed, record)
                 @react_root.forceUpdate()
         })
 
@@ -1481,12 +1487,35 @@ class JSTimeline
             </div>
             <div style={height: pane_margin} />
 
-            <code style={_l.extend {}, pane_style, {
-                height: 50, overflow: 'auto'
-                marginLeft: pane_margin, marginRight: pane_margin
-            }}>
-                { inspect_value(@active_record.value) unless not @active_record? }
-            </code>
+            {
+                # call record summary view
+                ((o) -> even_hstack(o.map((col) -> (col_flex_styling) ->
+                    <div style={_l.extend({
+                        overflow: 'auto', paddingTop: pane_padding, paddingBottom: pane_padding
+                    }, col_flex_styling)} children={col} />
+                ))(_l.extend {}, pane_style, {
+                    height: 100
+                    marginLeft: pane_margin, marginRight: pane_margin
+                    paddingTop: 0, paddingBottom: 0
+                })) _l.flatten [
+                    if @active_record?
+                        [
+                            do =>
+                                interesting_vars =
+                                    if @active_record.body?
+                                        @active_record.body.scope.vars
+                                    else if @active_record.args?
+                                        _l.map @active_record.args, 'value'
+                                    else []
+                                props_table({
+                                    data: _l.toPairs(interesting_vars).map ([label, v]) ->
+                                        [label, inspect_value(v)]
+                                })
+
+                            inspect_value(@active_record.value)
+                        ]
+                ]
+            }
 
             <div style={height: pane_margin, borderBottom: '1px solid #bbbbbb'} />
 
