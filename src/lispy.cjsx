@@ -107,7 +107,7 @@ window.make_closure = make_closure = (scope, expr) ->
     return jsfn
 
 # lispy_eval :: Scope -> Expr -> Record
-lispy_eval = (scope, expr) ->
+export lispy_eval = (scope, expr) ->
     [expr_ty, params...] = expr
     record = {scope, expr}
     record.value = switch expr_ty
@@ -208,7 +208,7 @@ lispy_eval_norecord = (scope, expr) ->
         else throw new Error("tried to eval a non-expr")
 
 # fresh_root_scope :: -> Scope
-window.fresh_root_scope = fresh_root_scope = ->
+export fresh_root_scope = ->
     # builtin_native_fns :: {Var: (Value...) -> Value}
     builtin_fns = {
         "js/==": (a, b) -> `a == b`
@@ -377,7 +377,7 @@ window.find_record = find_record = (root, pred) ->
     for child in subrecords_for_record(root)
         return found if (found = find_record(child, pred))?
 
-window.lambda_creator = lambda_creator = (root, lambda) ->
+export lambda_creator = (root, lambda) ->
     find_record root, (r) -> r.expr?[0] == 'lambda' and r.value == lambda
 
 
@@ -616,12 +616,12 @@ key_by_i = (lst) ->
 
 rk = (key) => (children) => <React.Fragment key={key} children={children} />
 
-vlist = (list, spacing, render_elem) ->
+export vlist = (list, spacing, render_elem) ->
     key_by_i intersperse (-> <div style={height: spacing, flex: '0 0 auto'} />), list.map(render_elem)
-hlist = (list, spacing, render_elem) ->
+export hlist = (list, spacing, render_elem) ->
     key_by_i intersperse (-> <div style={width: spacing, flex: '0 0 auto'} />), list.map(render_elem)
 
-even_hstack = (cols) -> (style) ->
+export even_hstack = (cols) -> (style) ->
     <div style={_l.extend {}, style, {
         display: 'flex', flexDirection: 'row'
     }}>
@@ -649,8 +649,9 @@ even_vstack = (rows) -> (style) ->
 pp = (o) -> JSON.stringify(o, null, '   ')
 
 
-[pane_margin, pane_padding] = [20, 10]
-pane_style = {
+export pane_margin = 20
+export pane_padding = 10
+export pane_style = {
     padding: pane_padding
     display: 'block'
     backgroundColor: '#EFEFEF'
@@ -667,7 +668,7 @@ mini_label_style = {
 }
 
 # props_table :: [(label, React.Element)] -> React.Element
-props_table = ({data, onClick}) ->
+export props_table = ({data, onClick}) ->
     <table onClick={onClick}>
         <tbody>
             {
@@ -684,7 +685,7 @@ props_table = ({data, onClick}) ->
         </tbody>
     </table>
 
-inspect_value = (value) ->
+export inspect_value = (value) ->
     token = (children) ->
         <span children={children} style={
             backgroundColor: 'rgb(116, 203, 135)';
@@ -720,7 +721,7 @@ inspect_value = (value) ->
     else
         inspect(value)
 
-label_for_record = (record) ->
+export label_for_record = (record) ->
     color = (choice) -> (children) -> <span style={color: choice} children={children} />
 
     if record.expr? == false
@@ -748,7 +749,7 @@ label_for_record = (record) ->
 
 
 
-Timeline = ({
+export Timeline = ({
     roots
     label, getChildren
     selected_entry
@@ -834,7 +835,7 @@ Timeline = ({
     />
 
 
-chunked_code_views = ({
+export chunked_code_views = ({
     source_code, highlight_range, chunk_delimiters,
     onClickInCode, onClickOutsideCode, highlighted_chunk_ref
 }) ->
@@ -1302,7 +1303,7 @@ js_source = (lambda) ->
     )
 ###
 
-window.sample_js = sample_js = """
+sample_js = """
 
 var tips = [
     'hello',

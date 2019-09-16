@@ -70,7 +70,7 @@ attraction_force = (p1, p2, k) ->
     #              = delta * (k / r**3)
     return vscale(delta, k / Math.max(vmag(delta)**3, 100))
 
-node_radius = 30
+export node_radius = 30
 box_space = 5
 box_hover_rad = (node_radius + box_space / 2)
 frames_between_simulation_repaint = 2 # 60fps / 3 = 20fps simulation
@@ -355,8 +355,8 @@ export GraphVisual = (props) ->
 
 # Sample usage
 
-getWindowSize = -> {width: window.innerWidth, height: window.innerHeight}
-useWindowSize = ->
+export getWindowSize = -> {width: window.innerWidth, height: window.innerHeight}
+export useWindowSize = ->
     [windowSize, setWindowSize] = React.useState(getWindowSize())
     React.useEffect((->
         resizeHandler = -> setWindowSize(getWindowSize())

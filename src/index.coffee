@@ -6,6 +6,7 @@ import registerServiceWorker from './registerServiceWorker';
 
 { Classic, JSTOLisp, JSTimeline, LispySyntaxExplorer, Lispy } = require './lispy'
 { DummyGraph, FibGraph } = require './graph-vis'
+{ JSDFG } = require './js-graph'
 
 class RCRoute
     constructor: (@component_type) ->
@@ -21,6 +22,7 @@ routes = {
     '/dummy-graph': -> new RCRoute(DummyGraph)
     '/fib-graph': -> new RCRoute(FibGraph)
     '/lispy': -> new Lispy()
+    '/js/dfg': -> new JSDFG()
 }
 
 default_route = ->
