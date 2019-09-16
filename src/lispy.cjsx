@@ -913,7 +913,7 @@ caret_in_dom_text_for_evt = ({evt, is_root_container}) ->
 
 ##
 
-class Lispy
+export class Lispy
     init: (@react_root) ->
         # UI state
         @active_record = null
@@ -1031,7 +1031,7 @@ class Lispy
 ##
 
 
-class LispySyntaxExplorer
+export class LispySyntaxExplorer
     init: (@react_root) ->
         @highlight_range = null # {start: {line: int, col: int}, end: {line: int, col: int}}
 
@@ -1095,7 +1095,7 @@ class LispySyntaxExplorer
 
 ##
 
-class Classic
+export class Classic
     init: (@react_root) ->
         @stack = [
             {record: root_record, impl: @interesting_records_in_call(root_record), cursor: 0}
@@ -1325,7 +1325,7 @@ _l.range(12).map(fib);
 
 """
 
-class JSTOLisp
+export class JSTOLisp
     init: (@react_root) ->
     did_mount: ->
     render: ->
@@ -1398,7 +1398,7 @@ class JSTOLisp
         })
 
 
-class JSTimeline
+export class JSTimeline
     init: (@react_root) ->
         # only run the program once, so we have one rr we can keep poking around with equal pointers
         # across time
@@ -1533,41 +1533,3 @@ class JSTimeline
     console_shortcuts: {
         r: -> ui.active_record
     }
-
-##
-
-{ DummyGraph, FibGraph } = require './graph-vis'
-
-class RCRoute
-    constructor: (@component_type) ->
-    init: (@react_root) ->
-    did_mount: ->
-    render: -> React.createElement(@component_type)
-
-routes = {
-    '/classic': -> new Classic()
-    '/js-to-lispy': -> new JSTOLisp()
-    '/js': -> new JSTimeline()
-    '/lispy-syntax': -> new LispySyntaxExplorer()
-    '/dummy-graph': -> new RCRoute(DummyGraph)
-    '/fib-graph': -> new RCRoute(FibGraph)
-    '/lispy': -> new Lispy()
-}
-
-default_route = ->
-    <div>
-        <ul>
-        { _l.keys(routes).map (path) -> <li key={path}><a href={path}>{path}</a></li> }
-        </ul>
-    </div>
-
-export App = createReactClass
-    componentWillMount: ->
-        @app_state = routes[window.location.pathname]?() ? new RCRoute(default_route)
-        window.ui = @app_state
-        @app_state.init(this)
-
-    componentDidMount: ->
-        @app_state.did_mount?()
-
-    render: -> @app_state.render()
