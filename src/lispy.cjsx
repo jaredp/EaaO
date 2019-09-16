@@ -481,7 +481,7 @@ ast_to_expr = (ast) ->
     return expr
 
 # ppexpr :: Expr -> SourceString
-window.ppexpr = ppexpr = (expr) ->
+export ppexpr = (expr) ->
     # oneline = JSON.stringify(expr)
     # return oneline unless oneline.length > 80
     is_oneliner = (line) -> line.length < 50 and '\n' not in line

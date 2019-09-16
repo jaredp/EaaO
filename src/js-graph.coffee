@@ -52,13 +52,15 @@ export class JSDFG
         record_is_method_call = (record) -> record.args?[0].value == root_scope['js/.()']
         color = (choice) -> (children) -> <span style={color: choice} children={children} />
 
-        fib = (n) ->
-            r = [1, 1]
-            for i in [0...n]
-                r = [r[0] + r[1], r[0]]
-            return r[1]
+        skip_sets = (record) ->
+            if record.expr?[0] == 'set' then skip_sets(record.body)
+            else record
 
-        withWindowSize (window_size) ->
+        deps_for = (record) ->
+            if record.args? then record.args?.slice(1)
+            else []
+
+        withWindowSize (window_size) =>
             <GV.GraphVisual
                 style={
                     backgroundColor: 'rgb(230, 230, 230)'
@@ -66,15 +68,9 @@ export class JSDFG
                     borderRadius: 10
                 }
                 width={window_size.width - 40} height={window_size.height - 40}
-                root_nodes={[{n: 7, path: []}]}
-                keyForNode={(p) -> p.path.concat(p.n).join('/')}
-                pinned_nodes={new Set(["7"])}
-                outedges={(p) ->
-                    if p.n <= 1
-                    then []
-                    else [{n: p.n - 1, path: p.path.concat(p.n)}, {n: p.n - 2, path: p.path.concat(p.n)}]
-                }
-                renderNode={(p, is_hovered) ->
+                root_nodes={[@rr]}
+                outedges={(record) -> deps_for(record).map(skip_sets)}
+                renderNode={(record, is_hovered) ->
                     <div style={
                         backgroundColor: unless is_hovered then 'rgb(255, 248, 221)' else 'rgb(169, 226, 255)'
                         border: unless is_hovered then '2px solid rgb(160, 159, 94)' else '2px solid rgb(129, 146, 185)'
@@ -86,8 +82,32 @@ export class JSDFG
 
                         color: 'black', fontFamily: 'sans-serif', fontSize: 16, fontWeight: 'light'
                     }>
-                        <div>fib(<span style={color: 'red'}>{p.n}</span>)</div>
-                        <div>= <span style={color: 'blue'}>{fib p.n}</span></div>
+                        {
+                            if record.expr?[0] == 'call'
+                                <React.Fragment>
+                                    <div><span style={color: 'black'}>
+                                        { E.ppexpr record.args[0].expr }
+                                    </span></div>
+                                    <div>→ <span style={color: 'blue'}>
+                                        { E.inspect_value(record.value) }
+                                    </span></div>
+                                </React.Fragment>
+
+                            else if record.expr?[0] == 'lit'
+                                <React.Fragment>
+                                    <div><span style={color: 'black'}>
+                                        { E.inspect_value(record.value) }
+                                    </span></div>
+                                </React.Fragment>
+
+                            else if record.expr?[0] == 'var'
+                                # if we do our jobs right in deps_for, we won't need to hit this (!)
+                                <React.Fragment>
+                                    <div><span style={color: 'brown'}>
+                                        { E.inspect_value(record.value) }
+                                    </span></div>
+                                </React.Fragment>
+                        }
                     </div>
                 }
             />

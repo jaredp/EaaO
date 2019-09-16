@@ -81,8 +81,6 @@ export GraphVisualImpl = createReactClass
     boundForceUpdate: -> @forceUpdate()
 
     componentWillMount: ->
-        window.ui = this if config.registerGlobalsForDebugging
-
         @center_for_nkey = @initial_centers_for_nkeys()
         @pinned_nodes = new Set()
         @selected_nkey = null
@@ -136,9 +134,9 @@ export GraphVisualImpl = createReactClass
         return is_broken
 
     stabilize_physics_before_first_render: ->
-        increment_ms = 1
+        increment_ms = 3
         initial_ticks_per_second = 1000 / increment_ms
-        seconds_to_run_physics_before_render = 15
+        seconds_to_run_physics_before_render = 20
         initial_ticks = seconds_to_run_physics_before_render * initial_ticks_per_second
         @simulation_tick(increment_ms) for i in [1...Math.round(initial_ticks)]
 
@@ -343,13 +341,44 @@ export GraphVisualImpl = createReactClass
         />
 
 
+
+class ObjIDs
+    # ids vended are unique in the namespace of this ObjID vendor,
+    # and may conflict with ids vended by other instances of ObjIDs
+    constructor: ->
+        @last_id_num = 0
+        @obj_to_id= new WeakMap()
+
+    # get :: Any -> String
+    get: (obj) ->
+        if (existing_id = @obj_to_id.get(obj))?
+            return existing_id
+        else
+            next_id_num = @last_id_num + 1
+            new_id = "#{next_id_num}"
+            @obj_to_id.set(obj, new_id)
+            @last_id_num = next_id_num
+            return new_id
+
+
 # Friendly API
 export GraphVisual = (props) ->
     props = _l.clone(props)
+
+    state = React.useRef({
+        obj_keyer: new ObjIDs()
+    })
+
+    unless props.keyForNode?
+        # default to referential equality
+        props.keyForNode = (node) -> state.current.obj_keyer.get(node)
+
     if props.root_nodes?
         props.nodes = find_connected(props.root_nodes, props.keyForNode, props.outedges)
         delete props.root_nodes
+
     props.pinned_nodes ?= new Set()
+
     <GraphVisualImpl {props...} />
 
 
