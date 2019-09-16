@@ -1536,14 +1536,34 @@ class JSTimeline
 
 ##
 
+{ DummyGraph, FibGraph } = require './graph-vis'
+
+class RCRoute
+    constructor: (@component_type) ->
+    init: (@react_root) ->
+    did_mount: ->
+    render: -> React.createElement(@component_type)
+
+routes = {
+    '/classic': -> new Classic()
+    '/js-to-lispy': -> new JSTOLisp()
+    '/js': -> new JSTimeline()
+    '/lispy-syntax': -> new LispySyntaxExplorer()
+    '/dummy-graph': -> new RCRoute(DummyGraph)
+    '/fib-graph': -> new RCRoute(FibGraph)
+    '/lispy': -> new Lispy()
+}
+
+default_route = ->
+    <div>
+        <ul>
+        { _l.keys(routes).map (path) -> <li key={path}><a href={path}>{path}</a></li> }
+        </ul>
+    </div>
+
 export App = createReactClass
     componentWillMount: ->
-        @app_state = switch window.location.pathname
-            when '/classic' then new Classic()
-            when '/js-to-lispy' then new JSTOLisp()
-            when '/js' then new JSTimeline()
-            when '/lispy-syntax' then new LispySyntaxExplorer()
-            else new Lispy()
+        @app_state = routes[window.location.pathname]?() ? new RCRoute(default_route)
         window.ui = @app_state
         @app_state.init(this)
 
