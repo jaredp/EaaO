@@ -349,7 +349,7 @@ window.all_exprs_in_eval_order = all_exprs_in_eval_order = (expr) ->
 
 window.all_subexprs = all_subexprs = all_exprs_in_source_order
 
-window.recursive_records_in_eval_order = recursive_records_in_eval_order = (record) ->
+export recursive_records_in_eval_order = (record) ->
     _l.flatten _l.compact [
         _l.flatMap(record.args, recursive_records_in_eval_order) if record.args? and record.expr?
         recursive_records_in_eval_order(record.body) if record.body? and record.expr?[0] == 'set'

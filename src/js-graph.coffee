@@ -29,31 +29,36 @@ withWindowSize = (fn) ->
 
 export class JSDFG
     init: (@react_root) ->
+        # set up console shortcuts
+        Object.defineProperties window, _l.mapValues(@console_shortcuts, (v) -> {get: v})
+
         # only run the program once, so we have one rr we can keep poking around with equal pointers
         # across time
         @lispy_ast = js_to_lispy(sample_js)
         @rr = E.lispy_eval(E.fresh_root_scope(), @lispy_ast)
+        @history = E.recursive_records_in_eval_order(@rr)
 
-        # UI state
-        @active_record = null
-        @collapsed = new Set()
+        @evaled = @rr.value
+        @root_scope = @rr.scope.vars
 
-        # set up console shortcuts
-        Object.defineProperties window, _l.mapValues(@console_shortcuts, (v) -> {get: v})
-
-    console_shortcuts: {
-    }
 
     did_mount: ->
     render: ->
-        @evaled = @rr.value
-        root_scope = @rr.scope.vars
-
-        record_is_method_call = (record) -> record.args?[0].value == root_scope['js/.()']
+        record_is_method_call = (record) -> record.args?[0].value == @root_scope['js/.()']
         color = (choice) -> (children) -> <span style={color: choice} children={children} />
 
-        skip_sets = (record) ->
+        who_set_var = (record) =>
+            scope = record.scope
+            varname = record.expr[1]
+            record_t = _l.findIndex(@history, record)
+            for t in [0..record_t - 1]
+                r = @history[t]
+                return r if r.expr?[0] == 'set' and r.scope == scope and r.expr[1] == varname
+            return null
+
+        skip_sets = (record) =>
             if record.expr?[0] == 'set' then skip_sets(record.body)
+            else if record.expr?[0] == 'var' then skip_sets(who_set_var(record))
             else record
 
         deps_for = (record) ->
@@ -68,7 +73,7 @@ export class JSDFG
                     borderRadius: 10
                 }
                 width={window_size.width - 40} height={window_size.height - 40}
-                root_nodes={[@rr]}
+                root_nodes={@rr.args.slice(1).map(skip_sets)}
                 outedges={(record) -> deps_for(record).map(skip_sets)}
                 renderNode={(record, is_hovered) ->
                     <div style={
@@ -101,7 +106,6 @@ export class JSDFG
                                 </React.Fragment>
 
                             else if record.expr?[0] == 'var'
-                                # if we do our jobs right in deps_for, we won't need to hit this (!)
                                 <React.Fragment>
                                     <div><span style={color: 'brown'}>
                                         { E.inspect_value(record.value) }
@@ -111,3 +115,6 @@ export class JSDFG
                     </div>
                 }
             />
+
+    console_shortcuts: {
+    }
