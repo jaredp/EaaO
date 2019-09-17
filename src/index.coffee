@@ -2,7 +2,8 @@ import React from 'react'
 import ReactDOM from 'react-dom'
 createReactClass = require 'create-react-class'
 import './index.css'
-import registerServiceWorker from './registerServiceWorker';
+
+_l = require 'lodash'
 
 { Classic, JSTOLisp, JSTimeline, LispySyntaxExplorer, Lispy } = require './lispy'
 { DummyGraph, FibGraph } = require './graph-vis'
@@ -44,4 +45,3 @@ App = createReactClass
     render: -> @app_state.render()
 
 ReactDOM.render <App />, document.getElementById('root')
-registerServiceWorker()

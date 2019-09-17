@@ -1305,6 +1305,19 @@ js_source = (lambda) ->
 
 sample_js = """
 
+var x = 4;
+var y = 6;
+
+function myfunc(x, y) {
+    return x * y + y * x;
+}
+
+var z = x + y;
+var a = x * y;
+var b = z + a;
+var c = myfunc(a, z);
+
+
 var tips = [
     'hello',
     'world!'

@@ -14,9 +14,15 @@ sample_js = """
 
 var x = 4;
 var y = 6;
+
+function myfunc(x, y) {
+    return x * y + y * x;
+}
+
 var z = x + y;
 var a = x * y;
 var b = z + a;
+var c = myfunc(a, z);
 
 """
 
@@ -47,18 +53,39 @@ export class JSDFG
         record_is_method_call = (record) -> record.args?[0].value == @root_scope['js/.()']
         color = (choice) -> (children) -> <span style={color: choice} children={children} />
 
+        precise_scope_for_var = (relevant_scope, varname) ->
+            return relevant_scope if varname of relevant_scope.vars
+            return precise_scope_for_var(relevant_scope.parent, varname) unless relevant_scope.parent == null
+            # sad; probably going to crash
+            return null
+
         who_set_var = (record) =>
             scope = record.scope
             varname = record.expr[1]
             record_t = _l.findIndex(@history, record)
+
+            # find the nearest prior (set)
             for t in [0..record_t - 1]
                 r = @history[t]
                 return r if r.expr?[0] == 'set' and r.scope == scope and r.expr[1] == varname
+
+            # never been set— should be a function argument of a closing scope
+            # find the relevant function call for the relevant scope.  This is soooo gross.
+            precise_scope = precise_scope_for_var(scope, varname)
+            creating_call = _l.find @history, (r) -> r.expr?[0] == 'call' and r.body?.scope == precise_scope
+
+            if creating_call?
+                argnames = creating_call.args[0].value[cl]?[1][1]
+                arg_position = _l.indexOf(argnames, varname)
+                return creating_call.args[arg_position + 1]
+
+            # we failed
             return null
 
         skip_sets = (record) =>
             if record.expr?[0] == 'set' then skip_sets(record.body)
             else if record.expr?[0] == 'var' then skip_sets(who_set_var(record))
+            else if record.expr?[0] == 'call' and record.body? then skip_sets(record.body)
             else record
 
         deps_for = (record) ->
