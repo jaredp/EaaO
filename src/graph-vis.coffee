@@ -292,6 +292,19 @@ export GraphVisualImpl = createReactClass
             render={(maybe_mouse_position) =>
                 active_nkey = @selected_nkey ? map_maybe(maybe_mouse_position, (o) => @maybe_nkey_at_mouse @from_viewport_tl o)
 
+                arrow = (src_ctr, dst_ctr, color, key) =>
+                    [vp_src_x, vp_src_y] = @to_viewport(src_ctr)
+                    arrow_delta = vdelta(src_ctr, dst_ctr)
+                    arrow_head_len = 6
+                    [vp_dst_x, vp_dst_y] = vsub @to_viewport(dst_ctr), v_of_len(arrow_delta, node_radius + arrow_head_len)
+                    <line
+                        key={key}
+                        markerEnd="url(#head)"
+                        x1={Math.round vp_src_x} y1={Math.round vp_src_y}
+                        x2={Math.round vp_dst_x} y2={Math.round vp_dst_y}
+                        stroke={color} strokeWidth={3}
+                    />
+
                 <React.Fragment>
                     <svg style={position: 'absolute', top: 0, left: 0} width={@props.width} height={@props.height}>
                         <defs>
@@ -300,27 +313,17 @@ export GraphVisualImpl = createReactClass
                           </marker>
                         </defs>
                         { @props.nodes.map (node) =>
-                            key = @props.keyForNode(node)
-                            src_ctr = @center_for_nkey[key]
-                            [vp_src_x, vp_src_y] = @to_viewport(src_ctr)
-                            <React.Fragment key={key}>
+                            definer_key = @props.keyForNode(node)
+                            <React.Fragment key={definer_key}>
                                 { @props.outedges(node).map (dst) =>
-                                    dst_key = @props.keyForNode(dst)
-                                    dst_ctr = @center_for_nkey[dst_key]
+                                    indicated_key = @props.keyForNode(dst)
+                                    # swap the direction of the arrow
+                                    [src_key, dst_key] = [indicated_key, definer_key]
                                     color = switch active_nkey
-                                        when key     then "#e60404"
+                                        when src_key then "#e60404"
                                         when dst_key then "#0814c1"
                                         else "#AAA"
-                                    arrow_delta = vdelta(src_ctr, dst_ctr)
-                                    arrow_head_len = 6
-                                    [vp_dst_x, vp_dst_y] = vsub @to_viewport(dst_ctr), v_of_len(arrow_delta, node_radius + arrow_head_len)
-                                    <line
-                                        key={dst_key}
-                                        markerEnd="url(#head)"
-                                        x1={Math.round vp_src_x} y1={Math.round vp_src_y}
-                                        x2={Math.round vp_dst_x} y2={Math.round vp_dst_y}
-                                        stroke={color} strokeWidth={3}
-                                    />
+                                    arrow(@center_for_nkey[src_key], @center_for_nkey[dst_key], color, indicated_key)
                                 }
                             </React.Fragment>
                         }
