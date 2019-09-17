@@ -23,6 +23,7 @@ var z = x + y;
 var a = x * y;
 var b = z + a;
 var c = myfunc(a, z);
+var d = "Hello " + c + "!";
 
 """
 

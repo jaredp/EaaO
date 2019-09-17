@@ -84,6 +84,7 @@ flatten_js_stmts = (stmts) -> rec_flatten stmts, (stmt) ->
         else null
 
 stmt_list = (stmts) ->
+    return js_expr_to_lispy(stmts[0]) if stmts.length == 1
     ['call', [['var', ';'], flatten_js_stmts(stmts).map(js_expr_to_lispy)...]]
 
 # rec_flatten :: [A] -> (A -> Maybe [A]) -> [A]
