@@ -8,6 +8,7 @@ _l = require 'lodash'
 { Classic, JSTOLisp, JSTimeline, LispySyntaxExplorer, Lispy } = require './lispy'
 { DummyGraph, FibGraph } = require './graph-vis'
 { JSDFG } = require './js-graph'
+{ RandomReactTest } = require './random-react-test'
 
 class RCRoute
     constructor: (@component_type) ->
@@ -24,6 +25,7 @@ routes = {
     '/fib-graph': -> new RCRoute(FibGraph)
     '/lispy': -> new Lispy()
     '/js/dfg': -> new JSDFG()
+    '/react/bench/firstload': -> new RCRoute(RandomReactTest)
 }
 
 default_route = ->
@@ -35,7 +37,10 @@ default_route = ->
 
 App = createReactClass
     componentWillMount: ->
-        @app_state = routes[window.location.pathname]?() ? new RCRoute(default_route)
+        @app_state =
+            routes[window.location.pathname]?() ?
+            routes[window.location.hash.slice(1)]?() ?
+            new RCRoute(default_route)
         window.ui = @app_state
         @app_state.init(this)
 
