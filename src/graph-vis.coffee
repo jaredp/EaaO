@@ -322,7 +322,7 @@ export GraphVisualImpl = createReactClass
                                     color = switch active_nkey
                                         when src_key then "#e60404"
                                         when dst_key then "#0814c1"
-                                        else "#AAA"
+                                        else "#CCC"
                                     arrow(@center_for_nkey[src_key], @center_for_nkey[dst_key], color, indicated_key)
                                 }
                             </React.Fragment>

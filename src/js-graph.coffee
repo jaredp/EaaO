@@ -110,7 +110,7 @@ export class JSDFG
                         width: 2 * GV.node_radius, height: 2 * GV.node_radius, borderRadius: '100%'
                         pointerEvents: 'none'
 
-                        display: 'flex', flexDirection: 'column'
+                        display: 'flex', flexDirection: 'column', position: 'relative'
                         textAlign: 'center', alignItems: 'center', justifyContent: 'center'
 
                         color: 'black', fontFamily: 'sans-serif', fontSize: 16, fontWeight: 'light'
@@ -118,27 +118,28 @@ export class JSDFG
                         {
                             if record.expr?[0] == 'call'
                                 <React.Fragment>
-                                    <div><span style={color: 'black'}>
-                                        { E.ppexpr record.args[0].expr }
-                                    </span></div>
-                                    <div>→ <span style={color: 'blue'}>
-                                        { E.inspect_value(record.value) }
-                                    </span></div>
+                                    <div style={
+                                        position: 'absolute', top: -20
+                                    }>
+                                        <span style={color: 'black'}>
+                                            { E.ppexpr record.args[0].expr }
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <span style={color: 'blue'}
+                                            children={ E.inspect_value(record.value) } />
+                                    </div>
                                 </React.Fragment>
 
                             else if record.expr?[0] == 'lit'
-                                <React.Fragment>
-                                    <div><span style={color: 'black'}>
-                                        { E.inspect_value(record.value) }
-                                    </span></div>
-                                </React.Fragment>
+                                <span style={color: 'black'}>
+                                    { E.inspect_value(record.value) }
+                                </span>
 
                             else if record.expr?[0] == 'var'
-                                <React.Fragment>
-                                    <div><span style={color: 'brown'}>
-                                        { E.inspect_value(record.value) }
-                                    </span></div>
-                                </React.Fragment>
+                                <span style={color: 'brown'}>
+                                    { E.inspect_value(record.value) }
+                                </span>
                         }
                     </div>
                 }
