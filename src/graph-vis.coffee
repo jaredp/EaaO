@@ -153,12 +153,19 @@ export GraphVisualImpl = createReactClass
         # for now just put all of them in the center
         center = null # compute once, but only if you have to
 
+        continued_nkeys = new Set()
+
         for node in next_props.nodes
             nkey = next_props.keyForNode(node)
+            continued_nkeys.add(nkey)
             continue unless @center_for_nkey[nkey]? == false
             center ?= vmean _l.values @center_for_nkey
             @center_for_nkey[nkey] = vadded_iplace [Math.random() * 10 - 5, Math.random(10) - 5], center
             @velocities[nkey] = [0, 0]
+
+        for nkey, center of @center_for_nkey when continued_nkeys.has(nkey) == no
+            delete @center_for_nkey[nkey]
+            delete @velocities[nkey]
 
 
     forall_edges_by_keys: (fn) ->

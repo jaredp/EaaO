@@ -34,13 +34,37 @@ WithWindowSizeComponent = ({children}) ->
 withWindowSize = (fn) ->
     <WithWindowSizeComponent children={fn} />
 
-export JSDFG = ->
-    source_code = sample_js
+useMemoBeforeError = (deps, creator) ->
+    [saved_deps, set_saved_deps] = React.useState(null)
+    [memoed_results, set_memoed_results] = React.useState(null)
+    [active_error, set_active_error] = React.useState(null)
 
-    {lispy_ast, rr, history, evaled, root_scope} = ((o) -> React.useMemo(o, [source_code])) () ->
+    if not _l.isEqual(deps, saved_deps)
+        set_saved_deps(deps)
+
+        try
+            result = creator()
+        catch error
+            # pass
+
+        if error?
+            set_active_error(error)
+            error = error
+        else
+            set_active_error(null)
+            active_error = null
+            set_memoed_results(result)
+            memoed_results = result
+
+    return [active_error, memoed_results]
+
+export JSDFG = ->
+    [source_code, set_source_code] = React.useState(sample_js)
+
+    [error, {lispy_ast, rr, history, evaled, root_scope}] = useMemoBeforeError [source_code], ->
         # only run the program once, so we have one rr we can keep poking around with equal pointers
         # across time
-        lispy_ast = js_to_lispy(sample_js)
+        lispy_ast = js_to_lispy(source_code)
         rr = E.lispy_eval(E.fresh_root_scope(), lispy_ast)
         history = E.recursive_records_in_eval_order(rr)
 
@@ -95,53 +119,68 @@ export JSDFG = ->
         else []
 
     withWindowSize (window_size) =>
-        <GV.GraphVisual
-            style={
-                backgroundColor: 'rgb(230, 230, 230)'
-                marginTop: 20, marginLeft: 20
-                borderRadius: 10
-            }
-            width={window_size.width - 40} height={window_size.height - 40}
-            root_nodes={rr.args.slice(1).map(skip_sets)}
-            outedges={(record) -> deps_for(record).map(skip_sets)}
-            renderNode={(record, is_hovered) ->
-                <div style={
-                    backgroundColor: unless is_hovered then 'rgb(255, 248, 221)' else 'rgb(169, 226, 255)'
-                    border: unless is_hovered then '2px solid rgb(160, 159, 94)' else '2px solid rgb(129, 146, 185)'
-                    width: 2 * GV.node_radius, height: 2 * GV.node_radius, borderRadius: '100%'
-                    pointerEvents: 'none'
+        code_editor_width = 400
+        code_editor_padding = 20
 
-                    display: 'flex', flexDirection: 'column', position: 'relative'
-                    textAlign: 'center', alignItems: 'center', justifyContent: 'center'
+        <React.Fragment>
+            <textarea
+                style={
+                    position: 'fixed', left: 20, top: 20, bottom: 20, width: code_editor_width - 2*code_editor_padding
+                    padding: code_editor_padding, backgroundColor: '#333', borderRadius: 10
+                    color: 'white', fontFamily: 'monaco', fontSize: 14
+                }
+                value={source_code}
+                onChange={(evt) -> set_source_code(evt.target.value)}
+            />
+            <GV.GraphVisual
+                style={
+                    backgroundColor: 'rgb(230, 230, 230)'
+                    position: 'fixed', top: 20, left: 20 + code_editor_width + 20
+                    borderRadius: 10
+                }
+                width={window_size.width - (20 + code_editor_width + 20) - 20}
+                height={window_size.height - 40}
+                root_nodes={rr.args.slice(1).map(skip_sets)}
+                outedges={(record) -> deps_for(record).map(skip_sets)}
+                renderNode={(record, is_hovered) ->
+                    <div style={
+                        backgroundColor: unless is_hovered then 'rgb(255, 248, 221)' else 'rgb(169, 226, 255)'
+                        border: unless is_hovered then '2px solid rgb(160, 159, 94)' else '2px solid rgb(129, 146, 185)'
+                        width: 2 * GV.node_radius, height: 2 * GV.node_radius, borderRadius: '100%'
+                        pointerEvents: 'none'
 
-                    color: 'black', fontFamily: 'sans-serif', fontSize: 16, fontWeight: 'light'
-                }>
-                    {
-                        if record.expr?[0] == 'call'
-                            <React.Fragment>
-                                <div style={
-                                    position: 'absolute', top: -20
-                                }>
-                                    <span style={color: 'black'}>
-                                        { E.ppexpr record.args[0].expr }
-                                    </span>
-                                </div>
-                                <div>
-                                    <span style={color: 'blue'}
-                                        children={ E.inspect_value(record.value) } />
-                                </div>
-                            </React.Fragment>
+                        display: 'flex', flexDirection: 'column', position: 'relative'
+                        textAlign: 'center', alignItems: 'center', justifyContent: 'center'
 
-                        else if record.expr?[0] == 'lit'
-                            <span style={color: 'black'}>
-                                { E.inspect_value(record.value) }
-                            </span>
+                        color: 'black', fontFamily: 'sans-serif', fontSize: 16, fontWeight: 'light'
+                    }>
+                        {
+                            if record.expr?[0] == 'call'
+                                <React.Fragment>
+                                    <div style={
+                                        position: 'absolute', top: -20
+                                    }>
+                                        <span style={color: 'black'}>
+                                            { E.ppexpr record.args[0].expr }
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <span style={color: 'blue'}
+                                            children={ E.inspect_value(record.value) } />
+                                    </div>
+                                </React.Fragment>
 
-                        else if record.expr?[0] == 'var'
-                            <span style={color: 'brown'}>
-                                { E.inspect_value(record.value) }
-                            </span>
-                    }
-                </div>
-            }
-        />
+                            else if record.expr?[0] == 'lit'
+                                <span style={color: 'black'}>
+                                    { E.inspect_value(record.value) }
+                                </span>
+
+                            else if record.expr?[0] == 'var'
+                                <span style={color: 'brown'}>
+                                    { E.inspect_value(record.value) }
+                                </span>
+                        }
+                    </div>
+                }
+            />
+        </React.Fragment>
