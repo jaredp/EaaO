@@ -24,7 +24,7 @@ routes = {
     '/dummy-graph': -> new RCRoute(DummyGraph)
     '/fib-graph': -> new RCRoute(FibGraph)
     '/lispy': -> new Lispy()
-    '/js/dfg': -> new JSDFG()
+    '/js/dfg': -> new RCRoute(JSDFG)
     '/react/bench/firstload': -> new RCRoute(RandomReactTest)
 }
 
