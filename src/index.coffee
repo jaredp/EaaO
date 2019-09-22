@@ -17,15 +17,15 @@ class RCRoute
     render: -> React.createElement(@component_type)
 
 routes = {
-    '/classic': -> new Classic()
-    '/js-to-lispy': -> new JSTOLisp()
-    '/js': -> new JSTimeline()
-    '/lispy-syntax': -> new LispySyntaxExplorer()
-    '/dummy-graph': -> new RCRoute(DummyGraph)
-    '/fib-graph': -> new RCRoute(FibGraph)
-    '/lispy': -> new Lispy()
-    '/js/dfg': -> new RCRoute(JSDFG)
     '/react/bench/firstload': -> new RCRoute(RandomReactTest)
+    '/syntax/js': -> new JSTOLisp()
+    '/syntax/lispy': -> new LispySyntaxExplorer()
+    '/classic/lispy': -> new Classic()
+    '/timeline/js': -> new JSTimeline()
+    '/timeline/lispy': -> new Lispy()
+    '/dfg/js': -> new RCRoute(JSDFG)
+    '/graph/dummy': -> new RCRoute(DummyGraph)
+    '/graph/fib': -> new RCRoute(FibGraph)
 }
 
 default_route = ->
