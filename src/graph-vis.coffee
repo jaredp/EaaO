@@ -38,6 +38,9 @@ vsum = (vecs) ->
     vadd_iplace(sum, vec) for vec in vecs
     return sum
 
+vmean = (vecs) -> vscale vsum(vecs), (1/vecs.length)
+pts_near = (p1, p2, dist) -> vmag_sq(vsub(p1, p2)) <= dist ** 2
+
 vset = (dst, src) -> [dst[0], dst[1]] = src
 vadd_iplace = (v1, v2) ->
     v1[0] += v2[0]
@@ -46,9 +49,17 @@ vadded_iplace = (dst, src) ->
     vadd_iplace(dst, src)
     return dst
 
-vmean = (vecs) -> vscale vsum(vecs), (1/vecs.length)
+rect_from_bl_tr = (bl, tr) -> [bl, tr]
 
-pts_near = (p1, p2, dist) -> vmag_sq(vsub(p1, p2)) <= dist ** 2
+# take the avg of the two points
+rect_center = ([bl, tr]) -> vscale(vadd(bl, tr), 0.5)
+bounding_rect = (vecs) ->
+    [xs, ys] = _l.unzip(vecs)
+    bl = [Math.min(xs...), Math.min(ys...)]
+    tr = [Math.max(xs...), Math.max(ys...)]
+    return rect_from_bl_tr(bl, tr)
+
+
 
 # map_maybe :: A? -> (A -> B) -> B?
 map_maybe = (arg, fn) -> if arg? then fn(arg) else null
@@ -90,8 +101,7 @@ export GraphVisualImpl = createReactClass
         @reset_simulation()
         @stabilize_physics_before_first_render()
 
-        @viewport_scale = 1
-        @canvas_center = vmean _l.values @center_for_nkey
+        @set_best_viewport()
 
     componentDidMount: ->
         @frames_until_simulation_repaint = 1
@@ -147,6 +157,16 @@ export GraphVisualImpl = createReactClass
                 (idx % cols) * (node_radius * 2 + box_space),           # x
                 Math.floor(idx / cols) * (node_radius * 2 + box_space) # y
             ]]
+
+    node_centroid: -> vmean _l.values @center_for_nkey
+
+    set_best_viewport: ->
+        favored_viewport_center = rect_center(@props.favored_viewport_area)
+        absolute_viewport_center = @viewport_center()
+        node_area_center = rect_center bounding_rect(_l.values(@center_for_nkey))
+
+        @viewport_scale = 1
+        @canvas_center = vadd node_area_center, vdelta(absolute_viewport_center, favored_viewport_center)
 
     componentWillReceiveProps: (next_props) ->
         # give positions to new nodes
@@ -244,6 +264,9 @@ export GraphVisualImpl = createReactClass
     # maybe_nkey_at_mouse :: Pt -> Maybe NKey where NKey = String
     maybe_nkey_at_mouse: (mouse) -> _l.findKey @center_for_nkey, (np) => pts_near(np, mouse, box_hover_rad / @viewport_scale)
 
+    # maybe_node_for_nkey is O(n)
+    maybe_node_for_nkey: (nkey) ->  _l.find(@props.nodes, (n) => @props.keyForNode(n) == nkey)
+
     render: ->
         <DraggingCanvas
             style={{
@@ -252,7 +275,17 @@ export GraphVisualImpl = createReactClass
                 position: 'relative'
             }}
             onClick={(where) =>
-                @selected_nkey = null
+                # FIXME this whole implementation will need to change
+
+                maybe_nkey = @maybe_nkey_at_mouse @from_viewport_tl(where)
+                @selected_nkey = maybe_nkey
+
+                # O(n) sucks, but we do that on every render so... this kind of has to be fast anyway
+                if (clicked_node = map_maybe(maybe_nkey, @maybe_node_for_nkey))?
+                    @props.onClickNode?(clicked_node)
+                else
+                    @props.onClickOutside?()
+
                 @needsUpdate()
             }
             onDoubleClick={(where) =>
@@ -387,6 +420,7 @@ export GraphVisual = (props) ->
         props.nodes = find_connected(props.root_nodes, props.keyForNode, props.outedges)
         delete props.root_nodes
 
+    props.favored_viewport_area ?= rect_from_bl_tr([0, 0], [props.width, props.height])
     props.pinned_nodes ?= new Set()
 
     <GraphVisualImpl {props...} />

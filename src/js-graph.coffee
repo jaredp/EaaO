@@ -112,6 +112,7 @@ export JSDFG = ->
         if record.expr?[0] == 'set' then skip_sets(record.body)
         else if record.expr?[0] == 'var' then skip_sets(who_set_var(record))
         else if record.expr?[0] == 'call' and record.body? then skip_sets(record.body)
+        else if (record.callees?.length ? 0) > 0 then record.callees.map (cle) -> cle.body
         else record
 
     deps_for = (record) ->
@@ -119,29 +120,23 @@ export JSDFG = ->
         else []
 
     withWindowSize (window_size) =>
-        code_editor_width = 400
+        code_editor_width = 600
         code_editor_padding = 20
 
         <React.Fragment>
-            <textarea
-                style={
-                    position: 'fixed', left: 20, top: 20, bottom: 20, width: code_editor_width - 2*code_editor_padding
-                    padding: code_editor_padding, backgroundColor: '#333', borderRadius: 10
-                    color: 'white', fontFamily: 'monaco', fontSize: 14
-                }
-                value={source_code}
-                onChange={(evt) -> set_source_code(evt.target.value)}
-            />
             <GV.GraphVisual
                 style={
                     backgroundColor: 'rgb(230, 230, 230)'
-                    position: 'fixed', top: 20, left: 20 + code_editor_width + 20
-                    borderRadius: 10
                 }
-                width={window_size.width - (20 + code_editor_width + 20) - 20}
-                height={window_size.height - 40}
-                root_nodes={rr.args.slice(1).map(skip_sets)}
+                favored_viewport_area={[[550, 0], [window_size.width, window_size.height]]}
+                width={window_size.width}
+                height={window_size.height}
+                root_nodes={rr.args.slice(1).map(skip_sets).filter (r) -> not E.is_lambda(r.value)}
                 outedges={(record) -> deps_for(record).map(skip_sets)}
+                onClickNode={(record) ->
+                    # just stash this on the console, so you can debug your way out
+                    window.r = record
+                }
                 renderNode={(record, is_hovered) ->
                     <div style={
                         backgroundColor: unless is_hovered then 'rgb(255, 248, 221)' else 'rgb(169, 226, 255)'
@@ -179,8 +174,35 @@ export JSDFG = ->
                                 <span style={color: 'brown'}>
                                     { E.inspect_value(record.value) }
                                 </span>
+
+                            else if record.expr?[0] == 'lambda'
+                                <span style={color: 'brown'}>
+                                    { "λ" }
+                                </span>
                         }
                     </div>
                 }
             />
+            <div style={
+                position: 'fixed', left: 20, top: 20, height: 600, width: code_editor_width
+                perspective: '1000px'
+                pointerEvents: 'none'
+            }>
+                <textarea
+                    style={{
+                        height: 600 - 2*20 - 2*20, width: code_editor_width
+                        transform: 'rotateY(28deg)', transformOrigin: 'left'
+                        padding: code_editor_padding, backgroundColor: '#333', borderRadius: 10
+                        color: 'white', fontFamily: 'monaco', fontSize: 14
+                        pointerEvents: 'all'
+                    }}
+                    value={source_code}
+                    onChange={(evt) -> set_source_code(evt.target.value)}
+                />
+            </div>
+            { if error?
+                <div style={position: 'fixed', bottom: 30, right: 30}>
+                    { "#{error}" }
+                </div>
+            }
         </React.Fragment>

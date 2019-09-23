@@ -5,8 +5,9 @@ _l = require 'lodash'
 ordered_map = _l.map
 
 
-window.cl = cl = Symbol('cl')
-window.builtin_name_key = builtin_name_key = Symbol('builtin name')
+export cl = window.cl = Symbol('cl')
+export is_lambda = (value) -> value[cl]?
+export builtin_name_key = window.builtin_name_key = Symbol('builtin name')
 ###
 Var :: String
 Scope :: {parent: Scope|null, vars: {Var: Value}}
