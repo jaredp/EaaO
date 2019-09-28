@@ -222,7 +222,7 @@ export GraphVisualImpl = createReactClass
         # compute the forces on each node
         fnet_by_nkey = _l.mapValues @center_for_nkey, (center, nkey) =>
             spring_forces = map_reduce_set [0, 0], vadd_iplace, neighbors_by_nkey[nkey], (neighbor_nkey) =>
-                spring_force(center, @center_for_nkey[neighbor_nkey], resting_length, 0.001)
+                spring_force(center, @center_for_nkey[neighbor_nkey], resting_length, 0.00005)
 
             repulsion_charges = [0, 0]
             for other_key, other_center of @center_for_nkey when nkey != other_key
