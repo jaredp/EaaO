@@ -108,13 +108,22 @@ export JSDFG = ->
         # we failed
         return null
 
-    # skip_sets :: Record -> {record: Record}
+    # labeled_record :: Record -> LabeledRecord
+    labeled_record = (record) -> {labels: [], record: record}
+    # add_label :: LabeledRecord -> String -> LabeledRecord
+    add_label = (label, lr) -> {labels: [label].concat(lr.labels), record: lr.record}
+
+    # skip_sets :: Record -> LabeledRecord
     skip_sets = (record) =>
-        if record.expr?[0] == 'set' then skip_sets(record.body)
-        else if record.expr?[0] == 'var' then skip_sets(who_set_var(record))
-        else if record.expr?[0] == 'call' and record.body? then skip_sets(record.body)
+        if record.expr?[0] == 'set' then add_label record.expr[1], skip_sets(record.body)
+        else if record.expr?[0] == 'var' then add_label record.expr[1], skip_sets(who_set_var(record))
+        else if record.expr?[0] == 'call'
+            add_label E.ppexpr(record.args[0].expr), (
+                if record.body? then skip_sets(record.body)
+                else labeled_record(record)
+            )
         # else if (record.callees?.length ? 0) > 0 then record.callees.map (cle) -> cle.body
-        else {record}
+        else labeled_record(record)
 
     deps_for = (record) ->
         if record.args? then record.args?.slice(1)
@@ -134,12 +143,25 @@ export JSDFG = ->
                 height={window_size.height}
                 root_nodes={rr.args.slice(1).map(skip_sets).filter ({record}) -> not E.is_lambda(record.value)}
                 outedges={({record}) -> deps_for(record).map(skip_sets)}
-                onClickNode={({record}) ->
+                onClickNode={(lr) ->
                     # just stash this on the console, so you can debug your way out
-                    window.r = record
+                    window.lr = lr
                 }
                 keyByObject={({record}) -> record}
-                renderNode={({record}, is_hovered) ->
+                renderNode={({record, labels}, is_hovered) ->
+                    color = switch record.expr?[0]
+                        when 'call' then 'blue'
+                        when 'lit' then 'black'
+                        when 'lambda' then 'brown'
+                        # following should never happen, but are included for safety
+                        when 'var' then 'brown'
+                        when 'set' then 'brown'
+                        else 'brown'
+
+                    ppvalue =
+                        if record.expr?[0] == 'lambda' then "λ"
+                        else E.inspect_value(record.value)
+
                     <div style={
                         backgroundColor: unless is_hovered then 'rgb(255, 248, 221)' else 'rgb(169, 226, 255)'
                         border: unless is_hovered then '2px solid rgb(160, 159, 94)' else '2px solid rgb(129, 146, 185)'
@@ -151,37 +173,16 @@ export JSDFG = ->
 
                         color: 'black', fontFamily: 'sans-serif', fontSize: 16, fontWeight: 'light'
                     }>
-                        {
-                            if record.expr?[0] == 'call'
-                                <React.Fragment>
-                                    <div style={
-                                        position: 'absolute', top: -20
-                                    }>
-                                        <span style={color: 'black'}>
-                                            { E.ppexpr record.args[0].expr }
-                                        </span>
-                                    </div>
-                                    <div>
-                                        <span style={color: 'blue'}
-                                            children={ E.inspect_value(record.value) } />
-                                    </div>
-                                </React.Fragment>
-
-                            else if record.expr?[0] == 'lit'
-                                <span style={color: 'black'}>
-                                    { E.inspect_value(record.value) }
-                                </span>
-
-                            else if record.expr?[0] == 'var'
-                                <span style={color: 'brown'}>
-                                    { E.inspect_value(record.value) }
-                                </span>
-
-                            else if record.expr?[0] == 'lambda'
-                                <span style={color: 'brown'}>
-                                    { "λ" }
-                                </span>
-                        }
+                        <div style={bottom: '100%', position: 'absolute'}>
+                            { labels.map (label, i) ->
+                                <div style={color: 'black'} key={i}>
+                                    { label }
+                                </div>
+                            }
+                        </div>
+                        <span style={{color}}>
+                            { ppvalue }
+                        </span>
                     </div>
                 }
             />
