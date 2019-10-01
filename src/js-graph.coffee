@@ -108,12 +108,13 @@ export JSDFG = ->
         # we failed
         return null
 
+    # skip_sets :: Record -> {record: Record}
     skip_sets = (record) =>
         if record.expr?[0] == 'set' then skip_sets(record.body)
         else if record.expr?[0] == 'var' then skip_sets(who_set_var(record))
         else if record.expr?[0] == 'call' and record.body? then skip_sets(record.body)
-        else if (record.callees?.length ? 0) > 0 then record.callees.map (cle) -> cle.body
-        else record
+        # else if (record.callees?.length ? 0) > 0 then record.callees.map (cle) -> cle.body
+        else {record}
 
     deps_for = (record) ->
         if record.args? then record.args?.slice(1)
@@ -131,13 +132,14 @@ export JSDFG = ->
                 favored_viewport_area={[[550, 0], [window_size.width, window_size.height]]}
                 width={window_size.width}
                 height={window_size.height}
-                root_nodes={rr.args.slice(1).map(skip_sets).filter (r) -> not E.is_lambda(r.value)}
-                outedges={(record) -> deps_for(record).map(skip_sets)}
-                onClickNode={(record) ->
+                root_nodes={rr.args.slice(1).map(skip_sets).filter ({record}) -> not E.is_lambda(record.value)}
+                outedges={({record}) -> deps_for(record).map(skip_sets)}
+                onClickNode={({record}) ->
                     # just stash this on the console, so you can debug your way out
                     window.r = record
                 }
-                renderNode={(record, is_hovered) ->
+                keyByObject={({record}) -> record}
+                renderNode={({record}, is_hovered) ->
                     <div style={
                         backgroundColor: unless is_hovered then 'rgb(255, 248, 221)' else 'rgb(169, 226, 255)'
                         border: unless is_hovered then '2px solid rgb(160, 159, 94)' else '2px solid rgb(129, 146, 185)'

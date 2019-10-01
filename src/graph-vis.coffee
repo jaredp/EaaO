@@ -412,7 +412,11 @@ export GraphVisual = (props) ->
         obj_keyer: new ObjIDs()
     })
 
-    unless props.keyForNode?
+    if (props.keyByObject? and not props.keyForNode?)
+        # default to referential equality
+        props.keyForNode = (node) -> state.current.obj_keyer.get(props.keyByObject(node))
+
+    else if not props.keyForNode?
         # default to referential equality
         props.keyForNode = (node) -> state.current.obj_keyer.get(node)
 
