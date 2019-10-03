@@ -60,6 +60,7 @@ useMemoBeforeError = (deps, creator) ->
 
 export JSDFG = ->
     [source_code, set_source_code] = React.useState(sample_js)
+    [selected_labeled_node, set_selected_labeled_node] = React.useState(null)
 
     [error, {lispy_ast, rr, history, evaled, root_scope}] = useMemoBeforeError [source_code], ->
         # only run the program once, so we have one rr we can keep poking around with equal pointers
@@ -144,6 +145,7 @@ export JSDFG = ->
                 root_nodes={rr.args.slice(1).map(skip_sets).filter ({record}) -> not E.is_lambda(record.value)}
                 outedges={({record}) -> deps_for(record).map(skip_sets)}
                 onClickNode={(lr) ->
+                    set_selected_labeled_node(lr)
                     # just stash this on the console, so you can debug your way out
                     window.lr = lr
                 }
@@ -203,9 +205,12 @@ export JSDFG = ->
                     onChange={(evt) -> set_source_code(evt.target.value)}
                 />
             </div>
-            { if error?
-                <div style={position: 'fixed', bottom: 30, right: 30}>
-                    { "#{error}" }
-                </div>
-            }
+            <div style={position: 'fixed', bottom: 30, right: 30}>
+                { if error?
+                    "#{error}"
+                }
+                { if (selected_source_range = selected_labeled_node?.record.expr?.source_range)?
+                    source_code.slice(selected_source_range[0], selected_source_range[1])
+                }
+            </div>
         </React.Fragment>
