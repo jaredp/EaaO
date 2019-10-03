@@ -73,7 +73,7 @@ export js_expr_to_lispy = (js) ->
         else unknown()
 
     # track the range in the source file
-    lispy_expr.source_range = [js.start, js.end]
+    lispy_expr.source_range ?= [js.start, js.end]
 
     return lispy_expr
 

@@ -143,7 +143,7 @@ export JSDFG = ->
                 width={window_size.width}
                 height={window_size.height}
                 root_nodes={rr.args.slice(1).map(skip_sets).filter ({record}) -> not E.is_lambda(record.value)}
-                outedges={({record}) -> deps_for(record).map(skip_sets)}
+                inedges={({record}) -> deps_for(record).map(skip_sets)}
                 onClickNode={(lr) ->
                     set_selected_labeled_node(lr)
                     # just stash this on the console, so you can debug your way out

@@ -39,6 +39,7 @@ vsum = (vecs) ->
     return sum
 
 vmean = (vecs) -> vscale vsum(vecs), (1/vecs.length)
+vmean2 = ([x1, y1], [x2, y2]) -> [(x1 + x2) / 2, (y1 + y2) / 2]
 pts_near = (p1, p2, dist) -> vmag_sq(vsub(p1, p2)) <= dist ** 2
 
 vset = (dst, src) -> [dst[0], dst[1]] = src
@@ -191,8 +192,8 @@ export GraphVisualImpl = createReactClass
     forall_edges_by_keys: (fn) ->
         for node in @props.nodes
             nkey = @props.keyForNode(node)
-            for edge_dst in @props.outedges(node)
-                edge_dst_key = @props.keyForNode(edge_dst)
+            for {dst} in @props.edgesOnNode(node)
+                edge_dst_key = @props.keyForNode(dst)
                 fn(nkey, edge_dst_key)
 
 
@@ -332,18 +333,27 @@ export GraphVisualImpl = createReactClass
             render={(maybe_mouse_position) =>
                 active_nkey = @selected_nkey ? map_maybe(maybe_mouse_position, (o) => @maybe_nkey_at_mouse @from_viewport_tl o)
 
-                arrow = (src_ctr, dst_ctr, color, key) =>
-                    [vp_src_x, vp_src_y] = @to_viewport(src_ctr)
+                arrow = (src_ctr, dst_ctr, color, key, maybe_label) =>
+                    [vp_src_x, vp_src_y] = vp_src = @to_viewport(src_ctr)
                     arrow_delta = vdelta(src_ctr, dst_ctr)
                     arrow_head_len = 6
-                    [vp_dst_x, vp_dst_y] = vsub @to_viewport(dst_ctr), v_of_len(arrow_delta, node_radius + arrow_head_len)
-                    <line
-                        key={key}
-                        markerEnd="url(#head)"
-                        x1={Math.round vp_src_x} y1={Math.round vp_src_y}
-                        x2={Math.round vp_dst_x} y2={Math.round vp_dst_y}
-                        stroke={color} strokeWidth={3}
-                    />
+                    [vp_dst_x, vp_dst_y] = vp_dst = vsub @to_viewport(dst_ctr), v_of_len(arrow_delta, node_radius + arrow_head_len)
+                    [vp_ctr_x, vp_ctr_y] = vp_ctr = vmean2(vp_src, vp_dst)
+                    <React.Fragment key={key}>
+                        <line
+                            markerEnd="url(#head)"
+                            x1={Math.round vp_src_x} y1={Math.round vp_src_y}
+                            x2={Math.round vp_dst_x} y2={Math.round vp_dst_y}
+                            stroke={color} strokeWidth={3}
+                        />
+                        { if maybe_label?
+                            <text
+                                dominantBaseline="middle" textAnchor="middle"
+                                x={vp_ctr_x} y={vp_ctr_y} color={color}
+                                children={maybe_label}
+                            />
+                        }
+                    </React.Fragment>
 
                 <React.Fragment>
                     <svg style={position: 'absolute', top: 0, left: 0} width={@props.width} height={@props.height}>
@@ -355,15 +365,16 @@ export GraphVisualImpl = createReactClass
                         { @props.nodes.map (node) =>
                             definer_key = @props.keyForNode(node)
                             <React.Fragment key={definer_key}>
-                                { @props.outedges(node).map (dst) =>
+                                { @props.edgesOnNode(node).map ({dst, direction, label}) =>
                                     indicated_key = @props.keyForNode(dst)
-                                    # swap the direction of the arrow
-                                    [src_key, dst_key] = [indicated_key, definer_key]
+                                    [src_key, dst_key] = switch direction
+                                        when 'out' then [definer_key,   indicated_key]
+                                        when 'in'  then [indicated_key, definer_key  ]
                                     color = switch active_nkey
                                         when src_key then "#e60404"
                                         when dst_key then "#0814c1"
                                         else "#CCC"
-                                    arrow(@center_for_nkey[src_key], @center_for_nkey[dst_key], color, indicated_key)
+                                    arrow(@center_for_nkey[src_key], @center_for_nkey[dst_key], color, indicated_key, label)
                                 }
                             </React.Fragment>
                         }
@@ -412,16 +423,24 @@ export GraphVisual = (props) ->
         obj_keyer: new ObjIDs()
     })
 
-    if (props.keyByObject? and not props.keyForNode?)
+    if not props.keyForNode?
         # default to referential equality
-        props.keyForNode = (node) -> state.current.obj_keyer.get(props.keyByObject(node))
+        if props.keyByObject?
+            props.keyForNode = (node) -> state.current.obj_keyer.get(props.keyByObject(node))
 
-    else if not props.keyForNode?
-        # default to referential equality
-        props.keyForNode = (node) -> state.current.obj_keyer.get(node)
+        else
+            props.keyForNode = (node) -> state.current.obj_keyer.get(node)
+
+    if not props.edgesOnNode?
+        if props.outedges?
+            props.edgesOnNode = (node) -> props.outedges(node).map (dst) -> {dst, direction: 'out', label: null}
+
+        else if props.inedges?
+            props.edgesOnNode = (node) -> props.inedges(node).map (dst) -> {dst, direction: 'in', label: null}
 
     if props.root_nodes?
-        props.nodes = find_connected(props.root_nodes, props.keyForNode, props.outedges)
+        props.nodes = find_connected props.root_nodes, props.keyForNode, (node) ->
+            _l.map props.edgesOnNode(node), 'dst'
         delete props.root_nodes
 
     props.favored_viewport_area ?= rect_from_bl_tr([0, 0], [props.width, props.height])
