@@ -34,35 +34,11 @@ WithWindowSizeComponent = ({children}) ->
 withWindowSize = (fn) ->
     <WithWindowSizeComponent children={fn} />
 
-useMemoBeforeError = (deps, creator) ->
-    [saved_deps, set_saved_deps] = React.useState(null)
-    [memoed_results, set_memoed_results] = React.useState(null)
-    [active_error, set_active_error] = React.useState(null)
-
-    if not _l.isEqual(deps, saved_deps)
-        set_saved_deps(deps)
-
-        try
-            result = creator()
-        catch error
-            # pass
-
-        if error?
-            set_active_error(error)
-            error = error
-        else
-            set_active_error(null)
-            active_error = null
-            set_memoed_results(result)
-            memoed_results = result
-
-    return [active_error, memoed_results]
-
 export JSDFG = ->
     [source_code, set_source_code] = React.useState(sample_js)
     [selected_labeled_node, set_selected_labeled_node] = React.useState(null)
 
-    [error, {lispy_ast, rr, history, evaled, root_scope}] = useMemoBeforeError [source_code], ->
+    [error, {lispy_ast, rr, history, evaled, root_scope}] = GV.useMemoBeforeError [source_code], ->
         # only run the program once, so we have one rr we can keep poking around with equal pointers
         # across time
         lispy_ast = js_to_lispy(source_code)

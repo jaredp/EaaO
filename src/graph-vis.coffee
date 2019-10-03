@@ -405,6 +405,13 @@ class ObjIDs
 
     # get :: Any -> String
     get: (obj) ->
+        if _l.isString(obj)
+            return "S#{obj}"
+        else if _l.isNumber(obj)
+            return "N#{obj}"
+        else if not obj?
+            return "null"
+
         if (existing_id = @obj_to_id.get(obj))?
             return existing_id
         else
@@ -575,4 +582,132 @@ export FibGraph = FibGraph = ->
                 </div>
             }
         />
+    </React.Fragment>
+
+export useMemoBeforeError = (deps, creator) ->
+    saved_deps = React.useRef(null)
+    memoed_results = React.useRef(null)
+    active_error = React.useRef(null)
+
+    if not _l.isEqual(deps, saved_deps.current)
+        saved_deps.current = deps
+
+        try
+            result = creator()
+        catch error
+            # pass
+
+        if error?
+            active_error.current = error
+
+        else
+            active_error.current = null
+            memoed_results.current = result
+
+    return [active_error.current, memoed_results.current]
+
+export ObjectGraph = ({width, height, roots}) ->
+    <GraphVisual
+        style={
+            backgroundColor: 'rgb(230, 230, 230)'
+            marginTop: 20, marginLeft: 20
+            borderRadius: 10
+        }
+        width={width} height={height}
+        root_nodes={roots}
+        edgesOnNode={(node) ->
+            if _l.isPlainObject(node)
+                Object.entries(node).map ([key, value]) -> {dst: value, direction: 'out', label: key}
+            else if _l.isArray(node)
+                node.map (value, i) -> {dst: value, direction: 'out', label: String(i)}
+            else
+                []
+        }
+        renderNode={(node, is_hovered) ->
+            <div style={
+                backgroundColor: unless is_hovered then 'rgb(255, 248, 221)' else 'rgb(169, 226, 255)'
+                border: unless is_hovered then '2px solid rgb(160, 159, 94)' else '2px solid rgb(129, 146, 185)'
+                width: 2 * node_radius, height: 2 * node_radius, borderRadius: '100%'
+                pointerEvents: 'none'
+
+                display: 'flex', flexDirection: 'column'
+                textAlign: 'center', alignItems: 'center', justifyContent: 'center'
+
+                color: 'black', fontFamily: 'sans-serif', fontSize: 16, fontWeight: 'light'
+            }>
+                {
+                    if _l.isPlainObject(node)
+                        '{}'
+                    else if _l.isString(node)
+                        <React.Fragment>
+                            <span color="brown">S</span>
+                            {node}
+                        </React.Fragment>
+                    else if _l.isNumber(node)
+                        String(node)
+                    else if _l.isArray(node)
+                        '[]'
+                    else
+                        <React.Fragment>
+                            <span color="brown">!</span>
+                            other
+                        </React.Fragment>
+                }
+            </div>
+        }
+    />
+
+export DummyObjGraph = ->
+    window_size = useWindowSize()
+
+    [source_code, set_source_code] = React.useState("""
+        let obj = {
+            x: {
+                y: {
+                    z: {}
+                }
+            },
+            y: "foo",
+            bar: "baz"
+        };
+        obj.x.y.z = obj;
+        return obj;
+    """)
+
+    [error, obj] = useMemoBeforeError [source_code], ->
+        # only run the program once, so we have one rr we can keep poking around with equal pointers
+        # across time
+        (new Function(source_code))()
+
+    code_editor_width = 600
+    code_editor_padding = 20
+
+    <React.Fragment>
+        <ObjectGraph
+            width={window_size.width - 40} height={window_size.height - 40}
+            roots={[obj]}
+        />
+        <div style={
+            position: 'fixed', left: 20, top: 20, height: 600, width: code_editor_width
+            perspective: '1000px'
+            pointerEvents: 'none'
+        }>
+            <textarea
+                style={{
+                    height: 600 - 2*20 - 2*20, width: code_editor_width
+                    transform: 'rotateY(28deg)', transformOrigin: 'left'
+                    padding: code_editor_padding, backgroundColor: '#333', borderRadius: 10
+                    color: 'white', fontFamily: 'monaco', fontSize: 14
+                    pointerEvents: 'all'
+                }}
+                value={source_code}
+                onChange={(evt) -> set_source_code(evt.target.value)}
+            />
+        </div>
+        <div style={position: 'fixed', bottom: 30, right: 30}>
+            { if error?
+                "#{error}"
+            }
+        </div>
+
     </React.Fragment>

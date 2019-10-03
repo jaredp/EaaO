@@ -6,7 +6,7 @@ import './index.css'
 _l = require 'lodash'
 
 { Classic, JSTOLisp, JSTimeline, LispySyntaxExplorer, Lispy } = require './lispy'
-{ DummyGraph, FibGraph } = require './graph-vis'
+{ DummyGraph, FibGraph, DummyObjGraph } = require './graph-vis'
 { JSDFG } = require './js-graph'
 { RandomReactTest } = require './random-react-test'
 
@@ -24,6 +24,7 @@ routes = {
     '/timeline/js': -> new JSTimeline()
     '/timeline/lispy': -> new Lispy()
     '/dfg/js': -> new RCRoute(JSDFG)
+    '/objgraph/dummy': -> new RCRoute(DummyObjGraph)
     '/graph/dummy': -> new RCRoute(DummyGraph)
     '/graph/fib': -> new RCRoute(FibGraph)
 }
