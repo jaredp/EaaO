@@ -7,7 +7,7 @@ _l = require 'lodash'
 
 { Classic, JSTOLisp, JSTimeline, LispySyntaxExplorer, Lispy } = require './lispy'
 { DummyGraph, FibGraph, DummyObjGraph } = require './graph-vis'
-{ JSDFG } = require './js-graph'
+{ JSDFG, JSTraceExplorer } = require './js-graph'
 { RandomReactTest } = require './random-react-test'
 
 class RCRoute
@@ -25,6 +25,7 @@ routes = {
     '/timeline/lispy': -> new Lispy()
     '/dfg/js': -> new RCRoute(JSDFG)
     '/objgraph/dummy': -> new RCRoute(DummyObjGraph)
+    '/objgraph/trace/js': -> new RCRoute(JSTraceExplorer)
     '/graph/dummy': -> new RCRoute(DummyGraph)
     '/graph/fib': -> new RCRoute(FibGraph)
 }

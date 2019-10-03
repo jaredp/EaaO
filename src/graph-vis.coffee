@@ -77,6 +77,7 @@ spring_force = (p1, p2, resting_length, k) ->
 
 attraction_force = (p1, p2, k) ->
     delta = vdelta(p1, p2)
+    return [0, 0] unless -100 < delta[0] < 100 and -100 < delta[1] < 100
     # want to return direction * (1 / r**2) * k,
     #              = delta * (1 / r**3) * k
     #              = delta * (k / r**3)
@@ -333,12 +334,12 @@ export GraphVisualImpl = createReactClass
             render={(maybe_mouse_position) =>
                 active_nkey = @selected_nkey ? map_maybe(maybe_mouse_position, (o) => @maybe_nkey_at_mouse @from_viewport_tl o)
 
-                arrow = (src_ctr, dst_ctr, color, key, maybe_label) =>
+                arrow = (src_ctr, dst_ctr, color, key, maybe_label, label_color) =>
                     [vp_src_x, vp_src_y] = vp_src = @to_viewport(src_ctr)
                     arrow_delta = vdelta(src_ctr, dst_ctr)
                     arrow_head_len = 6
                     [vp_dst_x, vp_dst_y] = vp_dst = vsub @to_viewport(dst_ctr), v_of_len(arrow_delta, node_radius + arrow_head_len)
-                    [vp_ctr_x, vp_ctr_y] = vp_ctr = vmean2(vp_src, vp_dst)
+                    [vp_ctr_x, vp_ctr_y] = vp_ctr = @to_viewport vmean2(src_ctr, dst_ctr)
                     <React.Fragment key={key}>
                         <line
                             markerEnd="url(#head)"
@@ -349,7 +350,8 @@ export GraphVisualImpl = createReactClass
                         { if maybe_label?
                             <text
                                 dominantBaseline="middle" textAnchor="middle"
-                                x={vp_ctr_x} y={vp_ctr_y} color={color}
+                                x={vp_ctr_x} y={vp_ctr_y} fill={label_color}
+                                stroke="white" strokeWidth="4px" paintOrder="stroke"
                                 children={maybe_label}
                             />
                         }
@@ -374,7 +376,15 @@ export GraphVisualImpl = createReactClass
                                         when src_key then "#e60404"
                                         when dst_key then "#0814c1"
                                         else "#CCC"
-                                    arrow(@center_for_nkey[src_key], @center_for_nkey[dst_key], color, indicated_key, label)
+                                    label_color = switch active_nkey
+                                        when src_key then "#e20000"
+                                        when dst_key then "#0410bd"
+                                        else "black"
+                                    arrow(
+                                        @center_for_nkey[src_key], @center_for_nkey[dst_key],
+                                        color, indicated_key,
+                                        label, label_color
+                                    )
                                 }
                             </React.Fragment>
                         }
@@ -606,24 +616,31 @@ export useMemoBeforeError = (deps, creator) ->
 
     return [active_error.current, memoed_results.current]
 
-export ObjectGraph = ({width, height, roots}) ->
+export ObjectGraph = ({width, height, style, roots, max_depth}) ->
+    # return <div> Hello!</div>
+
     <GraphVisual
-        style={
-            backgroundColor: 'rgb(230, 230, 230)'
-            marginTop: 20, marginLeft: 20
-            borderRadius: 10
-        }
+        style={style}
         width={width} height={height}
-        root_nodes={roots}
-        edgesOnNode={(node) ->
+        root_nodes={roots.map (r) -> {node: r, remaining_depth: max_depth}}
+        edgesOnNode={({node, remaining_depth}) ->
+            return [] unless remaining_depth > 0 or not remaining_depth?
+            next_remaining_depth = if remaining_depth? then remaining_depth - 1 else null
             if _l.isPlainObject(node)
-                Object.entries(node).map ([key, value]) -> {dst: value, direction: 'out', label: key}
+                Object.entries(node).map ([key, value]) -> {
+                    dst: {node:value, remaining_depth: next_remaining_depth}
+                    direction: 'out', label: key
+                }
             else if _l.isArray(node)
-                node.map (value, i) -> {dst: value, direction: 'out', label: String(i)}
+                node.map (value, i) -> {
+                    dst: {node:value, remaining_depth: next_remaining_depth},
+                    direction: 'out', label: String(i)
+                }
             else
                 []
         }
-        renderNode={(node, is_hovered) ->
+        keyByObject={({node}) -> node}
+        renderNode={({node}, is_hovered) ->
             <div style={
                 backgroundColor: unless is_hovered then 'rgb(255, 248, 221)' else 'rgb(169, 226, 255)'
                 border: unless is_hovered then '2px solid rgb(160, 159, 94)' else '2px solid rgb(129, 146, 185)'
@@ -647,6 +664,10 @@ export ObjectGraph = ({width, height, roots}) ->
                         String(node)
                     else if _l.isArray(node)
                         '[]'
+                    else if _l.isUndefined(node)
+                        'undefined'
+                    else if node == null
+                        'null'
                     else
                         <React.Fragment>
                             <span color="brown">!</span>
@@ -684,8 +705,13 @@ export DummyObjGraph = ->
 
     <React.Fragment>
         <ObjectGraph
-            width={window_size.width - 40} height={window_size.height - 40}
             roots={[obj]}
+            width={window_size.width - 40} height={window_size.height - 40}
+            style={
+                backgroundColor: 'rgb(230, 230, 230)'
+                marginTop: 20, marginLeft: 20
+                borderRadius: 10
+            }
         />
         <div style={
             position: 'fixed', left: 20, top: 20, height: 600, width: code_editor_width

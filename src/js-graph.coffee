@@ -190,3 +190,50 @@ export JSDFG = ->
                 }
             </div>
         </React.Fragment>
+
+
+export JSTraceExplorer = ->
+    [source_code, set_source_code] = React.useState(sample_js)
+
+    [error, rr] = GV.useMemoBeforeError [source_code], ->
+        # only run the program once, so we have one rr we can keep poking around with equal pointers
+        # across time
+        lispy_ast = js_to_lispy(source_code)
+        return E.lispy_eval(E.fresh_root_scope(), lispy_ast)
+
+    window_size = GV.useWindowSize()
+    code_editor_width = 600
+    code_editor_padding = 20
+
+    <React.Fragment>
+        <GV.ObjectGraph
+            style={
+                backgroundColor: 'rgb(230, 230, 230)'
+            }
+            width={window_size.width} height={window_size.height}
+            roots={[rr]}
+            max_depth={3}
+        />
+        <div style={
+            position: 'fixed', left: 20, top: 20, height: 600, width: code_editor_width
+            perspective: '1000px'
+            pointerEvents: 'none'
+        }>
+            <textarea
+                style={{
+                    height: 600 - 2*20 - 2*20, width: code_editor_width
+                    transform: 'rotateY(28deg)', transformOrigin: 'left'
+                    padding: code_editor_padding, backgroundColor: '#333', borderRadius: 10
+                    color: 'white', fontFamily: 'monaco', fontSize: 14
+                    pointerEvents: 'all'
+                }}
+                value={source_code}
+                onChange={(evt) -> set_source_code(evt.target.value)}
+            />
+        </div>
+        <div style={position: 'fixed', bottom: 30, right: 30}>
+            { if error?
+                "#{error}"
+            }
+        </div>
+    </React.Fragment>
