@@ -36,6 +36,25 @@ export js_expr_to_lispy = (js) ->
         when 'NumericLiteral' then ['lit', js.value]
         when 'ArrayExpression' then ['call', [['var', '[]'], js.elements.map($)...]]
 
+        when 'ObjectExpression'
+            return unknown() unless _l.every js.properties, (p) ->
+                p.type == 'ObjectProperty' and \
+                p.key.type in ['Identifier', 'StringLiteral', 'NumericLiteral']
+
+            ['call', [['var', '{}'], _l.flatMap(js.properties, (p) ->
+                key_expr =
+                    if not p.computed and p.key.type == 'Identifier'
+                    then ['lit', p.key.name]
+                    else $(p.key)
+                [key_expr, $(p.value)]
+            )...]]
+
+        when 'MemberExpression'
+            if not js.computed
+                ['call', [['var', '.'], $(js.object), ['lit', js.property.name]]]
+            else
+                return unknown()
+
         when 'AssignmentExpression'
             return unknown() unless js.operator == '=' and js.left.type == 'Identifier'
             ['set', js.left.name, $(js.right)]
@@ -60,13 +79,17 @@ export js_expr_to_lispy = (js) ->
             return ['set', js.id.name, fn] if js.id
 
         when 'CallExpression'
-            if js.callee.type == 'MemberExpression'
+            if js.callee.type == 'MemberExpression' and not js.callee.computed
                 ['call', [
                     ['var', 'js/.()']
                     $(js.callee.object)
                     ['lit', js.callee.property.name]
                     ['call', [['var', '[]'], js.arguments.map($)...]]
                 ]]
+
+            else if js.callee.type == 'MemberExpression' and js.callee.computed
+                return unknown()
+
             else
                 ['call', [$(js.callee), js.arguments.map($)...]]
 

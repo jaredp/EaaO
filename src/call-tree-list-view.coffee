@@ -21,14 +21,14 @@ export class JSCallTreeListView
             var x = 4;
             var y = 6;
 
-            function myfunc(x, y) {
-                return x * y + y * x;
+            function myfunc(x, y, c) {
+                return (x * y + y * x) * c.multiplier;
             }
 
             var z = x + y;
             var a = x * y;
             var b = z + a;
-            var c = myfunc(a, z);
+            var c = myfunc(a, z, {multiplier: 6});
             var d = "Hello " + c + "!";
         """
 
