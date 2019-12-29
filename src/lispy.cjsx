@@ -299,13 +299,13 @@ preorder = (root, getChildren) -> [root].concat _l.flatMap getChildren(root), (c
 postorder = (root, getChildren) -> _l.flatMap(getChildren(root), (child) -> preorder(child, getChildren)).concat([root])
 
 # callee_records :: CallRecord -> [Record]
-window.callee_records = callee_records = (record) ->
+export callee_records = window.callee_records = (record) ->
     throw new Error('expected call record') unless record.args?
     if record.args[0].value[cl]?
     then immediate_call_records(record.body)
     else record.callees
 
-window.immediate_call_records = immediate_call_records = (record) ->
+export immediate_call_records = window.immediate_call_records = (record) ->
     _l.flatten _l.compact [
         _l.flatMap(record.args, immediate_call_records) if record.args?
         immediate_call_records(record.body)             if record.expr?[0] == 'set'
@@ -382,7 +382,7 @@ export lambda_creator = (root, lambda) ->
     find_record root, (r) -> r.expr?[0] == 'lambda' and r.value == lambda
 
 
-closure_name = (fn) ->
+export closure_name = (fn) ->
     if fn[cl]?
     then fn[cl].names?.values().next().value ? '<lambda>'
     else fn[builtin_name_key] ? '<nat>'
@@ -604,15 +604,15 @@ toggle_set_contains = (set, elem) ->
     method = if set.has(elem) then "delete" else "add"
     set[method](elem)
 
-# intersperse :: A -> [A] -> [A]
-intersperse = (between, arr) ->
+# intersperse :: (idx -> A) -> [A] -> [A]
+export intersperse = (between, arr) ->
     res = []
     for elem, i in arr
         res.push(between(i)) if i != 0
         res.push(elem)
     return res
 
-key_by_i = (lst) ->
+export key_by_i = (lst) ->
     lst.map (o, i) -> <React.Fragment key={i}>{o}</React.Fragment>
 
 rk = (key) => (children) => <React.Fragment key={key} children={children} />
@@ -748,6 +748,13 @@ export label_for_record = (record) ->
         whiteSpace: 'nowrap'
     } />
 
+export full_label_for_call_record = (cr) ->
+    fn = closure_name(cr.args[0].value)
+    fn_label = <span style={fontFamily: 'monospace'} children={fn} />
+    args = cr.args.slice(1).map (arg_record) -> inspect_value(arg_record.value)
+    arglist = key_by_i intersperse (-> ', '), args
+    ret = inspect_value(cr.value)
+    <span>{fn_label}({arglist}) → {ret}</span>
 
 
 export Timeline = ({

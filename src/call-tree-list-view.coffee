@@ -34,42 +34,31 @@ export class JSCallTreeListView
 
         @lispy_ast = js_to_lispy(@sample_js)
         @rr = E.lispy_eval(E.fresh_root_scope(), @lispy_ast)
-        # tree of callee_records
-
-        @dummy_tree = {
-            v: 1,
-            c: [
-                {v: 2, c: [{v: 4, c: []}, {v: 6, c: []}]}
-                {v: 3, c: [
-                    {v: 4, c: []}
-                    {v: 6, c: []}
-                    {v: 6, c: []}
-                ]}
-                {v: 5, c: []}
-                {v: 3, c: [{v: 4, c: []}]}
-            ]
-        }
 
     rc_render: ->
         keyForObject = GV.useUniqueKeyForObject()
 
         tree_list_view =
             <TreeListView
-                root={@dummy_tree}
+                roots={_l.flatMap @rr.args, E.immediate_call_records}
                 keyForNode={keyForObject}
-                getChildren={(n) -> n.c}
-                renderNode={(n) ->
-                    <span>{n.v}</span>
-                }
+                getChildren={(cr) -> E.callee_records(cr)}
+                renderNode={(cr) -> E.full_label_for_call_record(cr)}
             />
 
-        <div style={margin: '3em', padding: '1em'}>
+        <div style={paddingTop: '1em'}>
+            <code style={{...E.pane_style, margin: '2em'}}>{@sample_js}</code>
+
             { tree_list_view }
         </div>
 
-# flatten_with_depth :: A -> (A -> depth -> B) -> [B]
-#   where depth = number
-flatten_with_depth = (root, fn) ->
+# flatten_with_depth :: [A] -> (A -> depth -> {emit: (idx -> B), rec: [A]}) -> [B]
+# except that emit and rec are implemented as lambdas passed to the fn, rather than a tuple
+# the fn returns.
+# Whether rec is invoked before or after emit controls whether the tree is flattened
+# preorder or postorder.
+# Despite the type given above, this is deeply imperative.
+flatten_with_depth = (roots, fn) ->
     lst = []
     rec = (node, depth) ->
         fn({
@@ -77,7 +66,7 @@ flatten_with_depth = (root, fn) ->
             rec: (child) -> rec(child, depth + 1)
             emit: (x) -> lst.push(x(lst.length))
         })
-    rec(root, 0)
+    rec(root, 0) for root in roots
     return lst
 
 useForceUpdate = ->
@@ -115,12 +104,12 @@ useItOrLoseIt = (default_value_fn) ->
 
     return {get, set, finalize}
 
-TreeListView = ({root, keyForNode, renderNode, getChildren}) ->
+TreeListView = ({roots, keyForNode, renderNode, getChildren}) ->
     nkey_is_open_state = useItOrLoseIt(-> true)
 
     is_selected = false
 
-    lines = flatten_with_depth root, ({node, depth, rec, emit}) ->
+    lines = flatten_with_depth roots, ({node, depth, rec, emit}) ->
         children = getChildren(node)
         has_children = not _l.isEmpty(children)
 
