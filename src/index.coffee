@@ -9,6 +9,7 @@ _l = require 'lodash'
 { DummyGraph, FibGraph, DummyObjGraph } = require './graph-vis'
 { JSDFG, JSTraceExplorer } = require './js-graph'
 { RandomReactTest } = require './random-react-test'
+{ JSCallTreeListView } = require './call-tree-list-view'
 
 class RCRoute
     constructor: (@component_type) ->
@@ -28,6 +29,7 @@ user_defined_routes = {
     '/objgraph/trace/js': -> new RCRoute(JSTraceExplorer)
     '/graph/dummy': -> new RCRoute(DummyGraph)
     '/graph/fib': -> new RCRoute(FibGraph)
+    '/calltree/list/js': -> new JSCallTreeListView()
 }
 
 IndexPage = ->

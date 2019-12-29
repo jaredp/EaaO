@@ -406,12 +406,12 @@ export GraphVisualImpl = createReactClass
 
 
 
-class ObjIDs
+export class ObjIDs
     # ids vended are unique in the namespace of this ObjID vendor,
     # and may conflict with ids vended by other instances of ObjIDs
     constructor: ->
         @last_id_num = 0
-        @obj_to_id= new WeakMap()
+        @obj_to_id = new WeakMap()
 
     # get :: Any -> String
     get: (obj) ->
@@ -430,6 +430,11 @@ class ObjIDs
             @obj_to_id.set(obj, new_id)
             @last_id_num = next_id_num
             return new_id
+
+export useUniqueKeyForObject = ->
+    obj_keyer = React.useRef(null)
+    obj_keyer.current ?= new ObjIDs()
+    return (obj) -> obj_keyer.current.get(obj)
 
 
 # Friendly API
