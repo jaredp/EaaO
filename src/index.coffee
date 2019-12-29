@@ -16,7 +16,7 @@ class RCRoute
     did_mount: ->
     render: -> React.createElement(@component_type)
 
-routes = {
+user_defined_routes = {
     '/react/bench/firstload': -> new RCRoute(RandomReactTest)
     '/syntax/js': -> new JSTOLisp()
     '/syntax/lispy': -> new LispySyntaxExplorer()
@@ -30,11 +30,22 @@ routes = {
     '/graph/fib': -> new RCRoute(FibGraph)
 }
 
-default_route = ->
+IndexPage = ->
     <div>
         <ul>
-        { _l.keys(routes).map (path) -> <li key={path}><a href={path}>{path}</a></li> }
+        { _l.keys(user_defined_routes).map (path) -> <li key={path}><a href={path}>{path}</a></li> }
         </ul>
+    </div>
+
+routes = {
+    '/': -> new RCRoute(IndexPage)
+    ...user_defined_routes
+}
+
+not_found_404_route = ->
+    <div style={textAlign: 'center', padding: '4em'}>
+        <div>404 Not found</div>
+        <div><a href="/">← Back to index</a></div>
     </div>
 
 App = createReactClass
@@ -42,7 +53,7 @@ App = createReactClass
         @app_state =
             routes[window.location.pathname]?() ?
             routes[window.location.hash.slice(1)]?() ?
-            new RCRoute(default_route)
+            new RCRoute(not_found_404_route)
         window.ui = @app_state
         @app_state.init(this)
 
