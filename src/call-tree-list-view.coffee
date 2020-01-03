@@ -34,6 +34,7 @@ export class JSCallTreeListView
             var b = z + a;
             var c = myfunc(a, z, {multiplier: 6});
             var d = "Hello " + c + "!";
+            var e = [1, 0, -100].map(x => myfunc(a, z, {multiplier: x}));
         """
 
         @lispy_ast = js_to_lispy(@sample_js)
@@ -45,6 +46,19 @@ export class JSCallTreeListView
         # selected :: Maybe CallRecord
         [selected, setSelected] = React.useState(null)
 
+        code_pane = do =>
+            <E.CodeWithHighlighting
+                style={margin: '2em'}
+                source_code={@sample_js}
+                highlight_range={do ->
+                    if selected?.expr?
+                        return selected.expr.source_range
+
+                    else if selected?.args?[0].value[cl]?
+                        return selected.args[0].value[cl][1].source_range
+                }
+            />
+
         tree_list_view =
             <TreeListView
                 roots={_l.flatMap @rr.args, E.immediate_call_records}
@@ -55,7 +69,7 @@ export class JSCallTreeListView
             />
 
         <div style={paddingTop: '1em'}>
-            <code style={{...E.pane_style, margin: '2em'}}>{@sample_js}</code>
+            { code_pane }
             { tree_list_view }
         </div>
 

@@ -11,7 +11,9 @@ export js_to_lispy = (js_source) ->
 export js_expr_to_lispy = (js) ->
     $ = js_expr_to_lispy
     $_ = (o, dfault) -> if o? then $(o) else dfault
-    unknown = -> ['call', [['var', 'js/unknown'], ['lit', js]]]
+    unknown = ->
+        debugger
+        ['call', [['var', 'js/unknown'], ['lit', js]]]
 
     lispy_expr = do => switch js.type
         when 'File' then $(js.program)
@@ -32,6 +34,9 @@ export js_expr_to_lispy = (js) ->
         when 'Identifier' then ['var', js.name]
         when 'BinaryExpression'
             ['call', [['var', "js/#{js.operator}"], $(js.left), $(js.right)]]
+        when 'UnaryExpression'
+            reutrn unknown() unless js.operator in ['-', '+']
+            ['call', [['var', "js/unary/#{js.operator}"], $(js.argument)]]
         when 'StringLiteral' then ['lit', js.value]
         when 'NumericLiteral' then ['lit', js.value]
         when 'ArrayExpression' then ['call', [['var', '[]'], js.elements.map($)...]]

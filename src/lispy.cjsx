@@ -233,6 +233,9 @@ export fresh_root_scope = ->
         "js/^": (a, b) -> `a ^ b`
         "js/\&": (a, b) -> `a & b`
 
+        'js/unary/-': (x) -> -x
+        'js/unary/+': (x) -> +x
+
         "js/in": (a, b) -> `a in b`
         "js/instanceof": (a, b) -> `a instanceof b`
         "js/.()": (obj, m, args) -> obj[m].apply(obj, args)
@@ -870,8 +873,8 @@ export chunked_code_views = ({
         (style) => <code style={style}
             onClick={(e) =>
                 cursor_in_chunk = caret_in_dom_text_for_evt({evt: e, is_root_container: (dom) -> dom.tagName == 'CODE'})
-                return onClickOutsideCode() unless cursor_in_chunk?
-                onClickInCode(cursor_in_chunk + chunk_start)
+                return onClickOutsideCode?() unless cursor_in_chunk?
+                onClickInCode?(cursor_in_chunk + chunk_start)
             }
         >
             {
@@ -897,6 +900,14 @@ export chunked_code_views = ({
                     </React.Fragment>
             }
         </code>
+
+export CodeWithHighlighting = ({source_code, highlight_range, style}) ->
+    # convoluted because it's based on chunked_code_views, when the dep should go
+    # the other way around, at least...
+    chunked_code_views({
+        source_code, highlight_range
+        chunk_delimiters: []
+    })[0](_l.extend({}, pane_style, style))
 
 
 caret_in_dom_text_for_evt = ({evt, is_root_container}) ->
@@ -960,8 +971,6 @@ export class Lispy
                     return @active_record.args[0].value[cl][1].source_range
 
             highlighted_chunk_ref: "highlighted_chunk"
-            onClickInCode: (cursor) =>
-            onClickOutsideCode: =>
         })
 
         panes = _l.zip(code_view_per_chunk, root_record.value).map ([chunk_code_view, eval_result], i) =>
@@ -1263,8 +1272,6 @@ export class Classic
                     source_code: lispy_code
                     highlight_range: current_record.expr?.source_range
                     chunk_delimiters: _l.map(demo_parsed_lispy, 'source_range.1').slice(0, -1)
-                    onClickInCode: (cursor) =>
-                    onClickOutsideCode: =>
                     highlighted_chunk_ref: "highlighted_chunk"
                 }).map (code_chunk_view, i) =>
                     <div key={i} style={{
@@ -1480,8 +1487,6 @@ export class JSTimeline
                     return @active_record.args[0].value[cl][1].source_range
 
             highlighted_chunk_ref: "highlighted_chunk"
-            onClickInCode: (cursor) =>
-            onClickOutsideCode: =>
         })
 
         panes = _l.zip(code_view_per_chunk, @rr.value).map ([chunk_code_view, eval_result], i) =>
