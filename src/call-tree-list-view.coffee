@@ -21,8 +21,12 @@ export class JSCallTreeListView
             var x = 4;
             var y = 6;
 
+            function mul(x, y) {
+                return x * y;
+            }
+
             function myfunc(x, y, c) {
-                return (x * y + y * x) * c.multiplier;
+                return mul(mul(x, y) + mul(y, x), c.multiplier);
             }
 
             var z = x + y;
@@ -77,124 +81,135 @@ useForceUpdate = ->
     forceUpdateFn = -> setState(state + 1)
     return forceUpdateFn
 
-# useItOrLoseIt :: (A -> B) -> {get: A -> B, set: A -> B -> (), finalize: () -> ()}
-useItOrLoseIt = (default_value_fn) ->
+# useItOrLoseIt :: Hook {get: A -> B, set: A -> B -> (), cycle: ((A -> B) -> ()) -> ()}
+useItOrLoseIt = ->
     forceUpdate = useForceUpdate()
 
     ref = React.useRef(new Map())
-    next_cache = new Map()
 
-    get = (key) ->
-        if next_cache.has(key)
-            return next_cache.get(key)
+    # usage_fn :: (A -> B) -> ()
+    cycle = (usage_fn) ->
+        next_cache = new Map()
 
-        else if ref.current.has(key)
-            cached_value = ref.current.get(key)
-            next_cache.set(key, cached_value)
-            return cached_value
+        getter = (key, default_value_fn) ->
+            if next_cache.has(key)
+                return next_cache.get(key)
 
-        else
-            cached_value = default_value_fn()
-            next_cache.set(key, cached_value)
-            return cached_value
+            else if ref.current.has(key)
+                cached_value = ref.current.get(key)
+                next_cache.set(key, cached_value)
+                return cached_value
 
-    finalize = (key) ->
+            else
+                cached_value = default_value_fn()
+                next_cache.set(key, cached_value)
+                return cached_value
+
+        retval = usage_fn(getter)
+
         ref.current = next_cache
+
+        return retval
 
     set = (key, value) ->
         ref.current.set(key, value)
         forceUpdate()
 
-    return {get, set, finalize}
+    get = (key) ->
+        return ref.current.get(key)
+
+    return {get, set, cycle}
 
 TreeListView = ({
     roots, keyForNode, renderNode, getChildren,
     selected, setSelected
 }) ->
     nkey_is_open_state = useItOrLoseIt(-> true)
+    nkey_is_open_state.cycle (get_nkey_is_open) ->
+        # visible_nodes :: [Node]
+        # line_uis :: [React.Element]
+        [visible_nodes, line_uis] = _l.unzip flatten_with_depth roots, ({node, depth, rec, emit}) ->
+            children = getChildren(node)
+            has_children = not _l.isEmpty(children)
 
-    # visible_nodes :: [Node]
-    # line_uis :: [React.Element]
-    [visible_nodes, line_uis] = _l.unzip flatten_with_depth roots, ({node, depth, rec, emit}) ->
-        children = getChildren(node)
-        has_children = not _l.isEmpty(children)
+            is_selected = (node == selected)
+            key = keyForNode(node)
 
-        is_selected = (node == selected)
-        key = keyForNode(node)
+            toggle_open = -> nkey_is_open_state.set(key, not is_open)
+            is_open = has_children and get_nkey_is_open(key, () -> depth < 1)
 
-        is_open = has_children and nkey_is_open_state.get(key)
-        toggle_open = -> nkey_is_open_state.set(key, not is_open)
+            triangle = if has_children
+                <div style={
+                    display: 'inline-block'
+                    width: 0
+                    height: 0
+                    borderStyle: 'solid'
+                    borderWidth: '3.5px 0 3.5px 5.5px'
+                    transition: 'transform 0.1s ease-in-out'
 
-        triangle = if has_children
-            <div style={
-                display: 'inline-block'
-                width: 0
-                height: 0
-                borderStyle: 'solid'
-                borderWidth: '3.5px 0 3.5px 5.5px'
-                transition: 'transform 0.1s ease-in-out'
+                    borderColor: "transparent transparent transparent #{if is_selected then '#fff' else 'rgba(0, 0, 0, 0.45)'}"
+                    transform: if is_open then 'rotate(90deg)' else ''
 
-                borderColor: "transparent transparent transparent #{if is_selected then '#fff' else 'rgba(0, 0, 0, 0.45)'}"
-                transform: if is_open then 'rotate(90deg)' else ''
+                    # put it somewhere closer to the middle of the line
+                    position: 'relative', top: 1
+                } />
 
-                # put it somewhere closer to the middle of the line
-                position: 'relative', top: 1
-            } />
+            emit (line_idx) ->
+                is_even_line_idx = line_idx % 2 == 0
+                line_ui =
+                    <div
+                        key={key}
+                        onClick={-> setSelected(node)} onDoubleClick={toggle_open}
+                        style={
+                            display: 'flex', flexDirection: 'row', padding: '4px 0'
+                            background:
+                                if is_selected then 'blue'
+                                else if is_even_line_idx
+                                then 'rgb(255, 255, 255)'
+                                else 'rgb(241, 242, 242)'
+                            color: 'white' if is_selected
+                        }
+                    >
+                        <div onClick={toggle_open} children={triangle} style={
+                            width: depth * 16 + 36
 
-        emit (line_idx) ->
-            is_even_line_idx = line_idx % 2 == 0
-            line_ui =
-                <div
-                    key={key}
-                    onClick={-> setSelected(node)} onDoubleClick={toggle_open}
-                    style={
-                        display: 'flex', flexDirection: 'row', padding: '4px 0'
-                        background:
-                            if is_selected then 'blue'
-                            else if is_even_line_idx
-                            then 'rgb(255, 255, 255)'
-                            else 'rgb(241, 242, 242)'
-                        color: 'white' if is_selected
-                    }
-                >
-                    <div onClick={toggle_open} children={triangle} style={
-                        width: depth * 16 + 36
-
-                        # if there is a triangle
-                        textAlign: 'right'
-                        paddingRight: 9
-                        boxSizing: 'border-box'
-                    } />
-                    <div style={flex: 1}>
-                        { renderNode(node) }
+                            # if there is a triangle
+                            textAlign: 'right'
+                            paddingRight: 9
+                            boxSizing: 'border-box'
+                        } />
+                        <div style={flex: 1}>
+                            { renderNode(node) }
+                        </div>
                     </div>
-                </div>
-            [node, line_ui]
+                [node, line_ui]
 
-        if is_open
-            rec(child) for child in children
+            if is_open
+                rec(child) for child in children
 
-    nkey_is_open_state.finalize()
+        set_selected_open = (should_open) ->
+            selected_key = keyForNode(selected)
+            nkey_is_open_state.set(selected_key, should_open)
 
-    set_selected_open = (should_open) ->
-        selected_key = keyForNode(selected)
-        nkey_is_open_state.set(selected_key, should_open)
+        find_node_at_offset_from_selected = (delta) ->
+            return null if selected == null
+            selected_index = visible_nodes.indexOf(selected)
+            return null if selected_index == -1
+            target_index = selected_index + delta
+            return null unless 0 <= target_index < visible_nodes.length
+            return visible_nodes[target_index]
 
-    find_node_at_offset_from_selected = (delta) ->
-        return null if selected == null
-        selected_index = visible_nodes.indexOf(selected)
-        return null if selected_index == -1
-        target_index = selected_index + delta
-        return null unless 0 <= target_index < visible_nodes.length
-        return visible_nodes[target_index]
-
-    <div tabIndex={0} onKeyDown={(evt) -> switch evt.key
-        when 'ArrowUp'   then if (target = find_node_at_offset_from_selected(-1))? then setSelected(target)
-        when 'ArrowDown' then if (target = find_node_at_offset_from_selected(+1))? then setSelected(target)
-        when 'ArrowLeft'           then set_selected_open(no)
-        when 'ArrowRight', 'Enter' then set_selected_open(yes)
-    }>
-        { line_uis }
-    </div>
+        <div tabIndex={0} onKeyDown={(evt) -> switch evt.key
+            when 'ArrowUp'
+                if (target = find_node_at_offset_from_selected(-1))? then setSelected(target)
+                else if selected == null and visible_nodes.length > 0 then setSelected _l.last(visible_nodes)
+            when 'ArrowDown'
+                if (target = find_node_at_offset_from_selected(+1))? then setSelected(target)
+                else if selected == null and visible_nodes.length > 0 then setSelected(visible_nodes[0])
+            when 'ArrowLeft'           then set_selected_open(no)
+            when 'ArrowRight', 'Enter' then set_selected_open(yes)
+        }>
+            { line_uis }
+        </div>
 
 
