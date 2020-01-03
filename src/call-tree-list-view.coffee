@@ -67,13 +67,13 @@ export class JSCallTreeListView
 # Despite the type given above, this is deeply imperative.
 flatten_with_depth = (roots, fn) ->
     lst = []
-    rec = (node, depth) ->
+    rec = (node, depth, parent) ->
         fn({
-            node, depth,
-            rec: (child) -> rec(child, depth + 1)
+            node, depth, parent
+            rec: (child) -> rec(child, depth + 1, node)
             emit: (x) -> lst.push(x(lst.length))
         })
-    rec(root, 0) for root in roots
+    rec(root, 0, null) for root in roots
     return lst
 
 useForceUpdate = ->
@@ -126,13 +126,16 @@ TreeListView = ({
 }) ->
     nkey_is_open_state = useItOrLoseIt(-> true)
     nkey_is_open_state.cycle (get_nkey_is_open) ->
+        selected_nodes_parent = null
+
         # visible_nodes :: [Node]
         # line_uis :: [React.Element]
-        [visible_nodes, line_uis] = _l.unzip flatten_with_depth roots, ({node, depth, rec, emit}) ->
+        [visible_nodes, line_uis] = _l.unzip flatten_with_depth roots, ({node, depth, parent, rec, emit}) ->
             children = getChildren(node)
             has_children = not _l.isEmpty(children)
 
             is_selected = (node == selected)
+            selected_nodes_parent = parent if is_selected
             key = keyForNode(node)
 
             toggle_open = -> nkey_is_open_state.set(key, not is_open)
@@ -187,10 +190,6 @@ TreeListView = ({
             if is_open
                 rec(child) for child in children
 
-        set_selected_open = (should_open) ->
-            selected_key = keyForNode(selected)
-            nkey_is_open_state.set(selected_key, should_open)
-
         find_node_at_offset_from_selected = (delta) ->
             return null if selected == null
             selected_index = visible_nodes.indexOf(selected)
@@ -206,8 +205,15 @@ TreeListView = ({
             when 'ArrowDown'
                 if (target = find_node_at_offset_from_selected(+1))? then setSelected(target)
                 else if selected == null and visible_nodes.length > 0 then setSelected(visible_nodes[0])
-            when 'ArrowLeft'           then set_selected_open(no)
-            when 'ArrowRight', 'Enter' then set_selected_open(yes)
+            when 'ArrowLeft'
+                selected_key = keyForNode(selected)
+                if nkey_is_open_state.get(selected_key)
+                    nkey_is_open_state.set(selected_key, no)
+                else
+                    setSelected(selected_nodes_parent)
+            when 'ArrowRight', 'Enter'
+                nkey_is_open_state.set(keyForNode(selected), yes)
+
         }>
             { line_uis }
         </div>
