@@ -43,9 +43,9 @@ export class JSCallTreeListView
         # selected :: Maybe CallRecord
         [selected, setSelected] = React.useState(null)
 
-        code_pane = do =>
+        code_pane = (style) =>
             <E.CodeWithHighlighting
-                style={margin: '2em'}
+                style={_l.extend {margin: '2em'}, style}
                 source_code={@sample_js}
                 highlight_range={do ->
                     if selected?.expr?
@@ -65,9 +65,12 @@ export class JSCallTreeListView
                 selected={selected} setSelected={setSelected}
             />
 
-        <div style={paddingTop: '1em'}>
-            { code_pane }
-            { tree_list_view }
+        <div style={display: 'flex', flexDirection: 'column', height: '100vh'}>
+            { code_pane({flexShrink: 0}) }
+            <div style={height: 0, borderBottom: '1px solid #bbbbbb'} />
+            <div style={flex: 1, overflow: 'auto'}>
+                { tree_list_view }
+            </div>
         </div>
 
 # flatten_with_depth :: [A] -> (A -> depth -> {emit: (idx -> B), rec: [A]}) -> [B]
