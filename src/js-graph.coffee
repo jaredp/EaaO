@@ -52,8 +52,6 @@ export JSDFG = ->
         _l.extend(window, x)
         return x
 
-
-    record_is_method_call = (record) -> record.args?[0].value == root_scope['js/.()']
     color = (choice) -> (children) -> <span style={color: choice} children={children} />
 
     precise_scope_for_var = (relevant_scope, varname) ->

@@ -238,7 +238,7 @@ export fresh_root_scope = ->
 
         "js/in": (a, b) -> `a in b`
         "js/instanceof": (a, b) -> `a instanceof b`
-        "js/.()": (obj, m, args) -> obj[m].apply(obj, args)
+        "js/.()": (obj, m, ...args) -> obj[m].apply(obj, args)
 
         '+':  (a, b) -> a + b
         '-':  (a, b) -> a - b
@@ -389,6 +389,8 @@ export closure_name = (fn) ->
     if fn[cl]?
     then fn[cl].names?.values().next().value ? '<lambda>'
     else fn[builtin_name_key] ? '<nat>'
+
+record_is_js_method_call = (record) -> record.args?[0].value[builtin_name_key] == 'js/.()'
 
 ## Syntax
 
@@ -755,8 +757,13 @@ export full_label_for_call_record = (cr) ->
     fn = closure_name(cr.args[0].value)
     fn_label = <span style={fontFamily: 'monospace'} children={fn} />
     args = cr.args.slice(1).map (arg_record) -> inspect_value(arg_record.value)
-    arglist = key_by_i intersperse (-> ', '), args
     ret = inspect_value(cr.value)
+
+    if record_is_js_method_call(cr)
+        arglist = key_by_i intersperse (-> ', '), args.slice(2)
+        return <span>{args[0]}.{cr.args[2].value}({arglist}) → {ret}</span>
+
+    arglist = key_by_i intersperse (-> ', '), args
     <span>{fn_label}({arglist}) → {ret}</span>
 
 
@@ -1460,7 +1467,6 @@ export class JSTimeline
         @evaled = @rr.value
         root_scope = @rr.scope.vars
 
-        record_is_method_call = (record) -> record.args?[0].value == root_scope['js/.()']
         color = (choice) -> (children) -> <span style={color: choice} children={children} />
 
         timeline = (style) => Timeline({
@@ -1469,13 +1475,13 @@ export class JSTimeline
             selected_entry: @active_record
             collapsed_entries: @collapsed
             label: (record) ->
-                return color('#8e3b8e')("::#{record.args[2].value}") if record_is_method_call(record)
+                return color('#8e3b8e')("::#{record.args[2].value}") if record_is_js_method_call(record)
                 label_for_record(record)
             getChildren: (record) ->
-                if record_is_method_call(record)
+                if record_is_js_method_call(record)
                     return _l.compact [
                         record.args[1]
-                        record.args[3].args.slice(1)...
+                        record.args.slice(3)...
                         record.body
                         (record.callees ? [])...
                     ]

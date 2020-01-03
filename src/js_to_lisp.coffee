@@ -89,7 +89,7 @@ export js_expr_to_lispy = (js) ->
                     ['var', 'js/.()']
                     $(js.callee.object)
                     ['lit', js.callee.property.name]
-                    ['call', [['var', '[]'], js.arguments.map($)...]]
+                    js.arguments.map($)...
                 ]]
 
             else if js.callee.type == 'MemberExpression' and js.callee.computed
