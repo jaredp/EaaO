@@ -212,22 +212,28 @@ TreeListView = ({
             return null unless 0 <= target_index < visible_nodes.length
             return visible_nodes[target_index]
 
-        <div tabIndex={0} onKeyDown={(evt) -> switch evt.key
-            when 'ArrowUp'
-                if (target = find_node_at_offset_from_selected(-1))? then setSelected(target)
-                else if selected == null and visible_nodes.length > 0 then setSelected _l.last(visible_nodes)
-            when 'ArrowDown'
-                if (target = find_node_at_offset_from_selected(+1))? then setSelected(target)
-                else if selected == null and visible_nodes.length > 0 then setSelected(visible_nodes[0])
-            when 'ArrowLeft'
-                selected_key = keyForNode(selected)
-                if nkey_is_open_state.get(selected_key)
-                    nkey_is_open_state.set(selected_key, no)
+        <div tabIndex={0} onKeyDown={(evt) ->
+            switch evt.key
+                when 'ArrowUp'
+                    if (target = find_node_at_offset_from_selected(-1))? then setSelected(target)
+                    else if selected == null and visible_nodes.length > 0 then setSelected _l.last(visible_nodes)
+                when 'ArrowDown'
+                    if (target = find_node_at_offset_from_selected(+1))? then setSelected(target)
+                    else if selected == null and visible_nodes.length > 0 then setSelected(visible_nodes[0])
+                when 'ArrowLeft'
+                    selected_key = keyForNode(selected)
+                    if nkey_is_open_state.get(selected_key)
+                        nkey_is_open_state.set(selected_key, no)
+                    else
+                        setSelected(selected_nodes_parent)
+                when 'ArrowRight', 'Enter'
+                    nkey_is_open_state.set(keyForNode(selected), yes)
                 else
-                    setSelected(selected_nodes_parent)
-            when 'ArrowRight', 'Enter'
-                nkey_is_open_state.set(keyForNode(selected), yes)
-
+                    return
+            # prevent scrolling on up/down arrow keys
+            # will only .preventDefault() if the switch above did *not* match,
+            # because the else does an early return
+            evt.preventDefault()
         }>
             { line_uis }
         </div>
