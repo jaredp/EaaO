@@ -10,12 +10,9 @@ babylon = require 'babylon'
 E = require './lispy'
 GV = require './graph-vis'
 
-WrapRCRouteRenderInReactFunctionComponent = ({rcroute}) -> rcroute.rc_render()
 
 export class JSCallTreeListView
-    render: ->
-        <WrapRCRouteRenderInReactFunctionComponent rcroute={this} />
-
+    render: -> <E.WrapRCRouteRenderInReactFunctionComponent rcroute={this} />
     init: ->
         @sample_js = """
             var x = 4;
@@ -90,14 +87,9 @@ flatten_with_depth = (roots, fn) ->
     rec(root, 0, null) for root in roots
     return lst
 
-useForceUpdate = ->
-    [state, setState] = React.useState(0)
-    forceUpdateFn = -> setState(state + 1)
-    return forceUpdateFn
-
 # useItOrLoseIt :: Hook {get: A -> B, set: A -> B -> (), cycle: ((A -> B) -> ()) -> ()}
 useItOrLoseIt = ->
-    forceUpdate = useForceUpdate()
+    forceUpdate = E.useForceUpdate()
 
     ref = React.useRef(new Map())
 

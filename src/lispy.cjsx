@@ -1354,10 +1354,18 @@ _l.range(12).map(fib);
 
 """
 
+export WrapRCRouteRenderInReactFunctionComponent = ({rcroute}) -> rcroute.rc_render()
+
+export useForceUpdate = ->
+    [state, setState] = React.useState(0)
+    forceUpdateFn = -> setState(state + 1)
+    return forceUpdateFn
+
 export class JSTOLisp
+    render: -> <WrapRCRouteRenderInReactFunctionComponent rcroute={this} />
     init: (@react_root) ->
-    did_mount: ->
-    render: ->
+        @js_code = sample_js
+    rc_render: ->
         # NOTE we use a style where your parent passes you your flex-child attributes
         # through the curried `style` arg
         pane = (content) -> (style) ->
@@ -1377,18 +1385,24 @@ export class JSTOLisp
 
         ##
 
-        @js_ast = babylon.parse(sample_js)
-        @lispy_ast = js_to_lispy(sample_js)
+        forceUpdate = useForceUpdate()
+
+        @js_ast = babylon.parse(@js_code)
+        @lispy_ast = js_to_lispy(@js_code)
         @root_scope = fresh_root_scope()
         @transpiled_perf = perf_of =>
             @rr = try lispy_eval(@root_scope, @lispy_ast) catch err then {value: {error: err.toString()}}
         @evaled = @rr.value
         @js_perf = perf_of =>
-            @js_evaled = try eval(sample_js) catch err then {error: err}
+            @js_evaled = try eval(@js_code) catch err then {error: err}
 
         root = even_hstack [
             even_vstack [
-                pane(sample_js)
+                (layout) =>
+                    <textarea
+                        value={@js_code} onChange={(evt) => @js_code = evt.target.value; forceUpdate()}
+                        style={_l.extend {}, pane_style, {backgroundColor: '#FFF'}, layout}
+                    />
                 pane(pp @js_ast)
             ]
             even_vstack [
