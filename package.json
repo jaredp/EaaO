@@ -6,7 +6,7 @@
     "babylon": "^6.18.0",
     "coffee-react-scripts": "1.0.0",
     "create-react-class": "^15.6.3",
-    "lodash": "^4.17.15",
+    "lodash": "^4.17.21",
     "react": "^16.8.3",
     "react-dom": "^16.8.3",
     "react-spring": "^8.0.27"
